@@ -8,7 +8,7 @@
  0 1 1 0 0 0 0 1    
  0 1 1 1 1 0 0 0    
 
-			SkillShot Library
+			SkillShot Library v1.1
 
 		Save as SkillShot.lua into Ensage\Scripts\libs.
 
@@ -19,6 +19,15 @@
 			skillShot:PredictedXYZ(target,delay): Returns the Vector of the target's predicted location after specified milisecond
 			skillShot:SkillShotXYZ(source,target,delay,speed): Returns the Vector of the target's predicted location for a skillshot. Souce is the caster,speed is the speed of the projectile and delay is the casting time
 			skillShot:BlockableSkillShotXYZ(source,target,delay,speed,aoe,team): Same as SkillShotXYZ, but this time it returns nil if skillshot can be blocked by a unit. AoE is aoe of the skillshot. Team is true if allies can block, false otherwise.
+
+
+		Changelog:
+			v1.1:
+			 - Added Option to track only heroes
+
+			v1.0:
+			 - Release
+
 --]]
 
 require("libs.VectorOp")
@@ -26,6 +35,7 @@ require("libs.VectorOp")
 skillShot = {}
 
 skillShot.liteMode = false
+skillShot.onlyHeroes = false
 
 skillShot.trackTable = {}
 skillShot.lastTrackTick = 0
@@ -55,7 +65,12 @@ function __TrackTick(tick)
 end
 
 function __Track()
-	local all = entityList:FindEntities({})
+	local all = {}
+	if not skillShot.onlyHeroes then
+		local all = entityList:FindEntities({})
+	else
+		local all = entityList:FindEntities({type = TYPE_HERO})
+	end
 	for i,v in ipairs(all) do
 		if skillShot.trackTable[v.handle] == nil and v.alive and v.visible then
 			skillShot.trackTable[v.handle] = {nil,nil,nil,v,nil}
