@@ -8,7 +8,7 @@
  0 1 1 0 0 0 0 1    
  0 1 1 1 1 0 0 0    
 
-			SkillShot Library v1.1
+			SkillShot Library v1.1a
 
 		Save as SkillShot.lua into Ensage\Scripts\libs.
 
@@ -22,6 +22,9 @@
 
 
 		Changelog:
+			v1.1a:
+			 - Removed unnecessary tracking of non-npcs
+
 			v1.1:
 			 - Added Option to track only heroes
 
@@ -65,11 +68,12 @@ function __TrackTick(tick)
 end
 
 function __Track()
-	local all = {}
+	local all = entityList:FindEntities({type = TYPE_HERO})
 	if not skillShot.onlyHeroes then
-		local all = entityList:FindEntities({})
-	else
-		local all = entityList:FindEntities({type = TYPE_HERO})
+		local _addition = entityList:FindEntities({type = TYPE_NPC})
+		for i,v in ipairs(_addition) do
+			table.insert(all,v)
+		end
 	end
 	for i,v in ipairs(all) do
 		if skillShot.trackTable[v.handle] == nil and v.alive and v.visible then
