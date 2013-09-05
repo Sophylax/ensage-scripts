@@ -6,7 +6,16 @@
  0 1 1 1 1 0 0 1     /___/\___/ .__/_//_/\_, /_/\_,_//_\_\ 
  0 1 1 0 1 1 0 0             /_/        /___/             
  0 1 1 0 0 0 0 1    
- 0 1 1 1 1 0 0 0    
+ 0 1 1 1 1 0 0 0
+
+			Arrowing  v1.0a
+
+		Changelog:
+			v1.0a:
+			 - Lowered menu Width
+
+			v1.0:
+			 - Release   
 ]]
 
 
@@ -16,8 +25,9 @@ require("libs.HotkeyConfig")
 require("libs.Utils")
 
 ScriptConfig:SetName("Arrowing")
-ScriptConfig:AddParam("active","Use Arrow",SGC_TYPE_ONKEYDOWN,false,false,string.byte("C"))
+ScriptConfig:SetExtention(-.3)
 ScriptConfig:SetVisible(false)
+ScriptConfig:AddParam("active","Use Arrow",SGC_TYPE_ONKEYDOWN,false,false,string.byte("C"))
 sleepTick = 0
 target = nil
 range = 0
