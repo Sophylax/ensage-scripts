@@ -22,6 +22,16 @@
 		2. Add 'require("libs.Utils")' to the top of your script, without single quotes.
 		
 	====================================
+	|             Changelog            |
+	====================================
+
+		v1.1:
+		 - Fixed Linken's Detection
+
+		v1.0:
+		 - Released
+		
+	====================================
 	|               API                |
 	====================================
 
@@ -1235,7 +1245,7 @@ end
 function LuaEntity:IsLinkensProtected()
 	assert(self.npc or self.hero, debug.getinfo(1, "n").name..": Invalid Unit")
 	local linken = self:FindItem("item_sphere")
-	return not linken or linken.cd == 0
+	return linken and linken.cd == 0
 end
 
 --Returns if LuaEntity is ranged
