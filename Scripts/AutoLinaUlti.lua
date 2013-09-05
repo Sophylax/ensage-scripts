@@ -1,5 +1,27 @@
 require("libs.Utils")
 
+--[[
+ 0 1 0 1 0 0 1 1    
+ 0 1 1 0 1 1 1 1        ____          __        __         
+ 0 1 1 1 0 0 0 0       / __/__  ___  / /  __ __/ /__ ___ __
+ 0 1 1 0 1 0 0 0      _\ \/ _ \/ _ \/ _ \/ // / / _ `/\ \ /
+ 0 1 1 1 1 0 0 1     /___/\___/ .__/_//_/\_, /_/\_,_//_\_\ 
+ 0 1 1 0 1 1 0 0             /_/        /___/             
+ 0 1 1 0 0 0 0 1    
+ 0 1 1 1 1 0 0 0 
+
+			Auto Lina Ulti  v1.0a
+
+		This script will try to kill anyone who is anyone that can die from a laguna blade. 
+
+		Changelog:
+			v1.0a:
+			 - Improved Scepter Detection
+
+			v1.0:
+			 - Release
+
+]]
 
 damage = {450,675,950}
 damage[0] = 0
@@ -20,7 +42,7 @@ function Tick( tick )
 	local enemies = entityList:FindEntities({type=TYPE_HERO,team=TEAM_ENEMY,alive=true,visible=true})
 	for i,v in ipairs(enemies) do
 		if not v.illusion and v:CanDie() then
-			if me:FindItem("item_ultimate_scepter") then
+			if lagunaBlade.castRange == rangeAgha then
 				if me:GetDistance2D(v) < aghaRange and v.health < v:DamageTaken(damageAgha[lagunaBlade.level],DAMAGE_MAGC,me) then
 					me:SafeCastSpell("lina_laguna_blade",v)
 					Sleep(1000)
@@ -36,32 +58,4 @@ function Tick( tick )
 		end
 	end
 end
-
-
-function GetDistance3D(p,t)
-	return math.sqrt(math.pow(p.x-t.x,2)+math.pow(p.y-t.y,2)+math.pow(p.z-t.z,2))
-end
-
-function Draw()
-	local pos = Vector()
-	ult = me:GetAbility(4)
-	if  ult and ult.level ~= 0 then
-		enemies = entityList:FindEntities({type=TYPE_HERO,team=TEAM_ENEMY,alive=true})
-		for i,v in ipairs(enemies) do
-			if HasAgha() == true then
-				damageult = damageAgha[ult.level]*(1-v.magicDmgResist)
-			else
-				damageult = damageNorm[ult.level]*(1-v.magicDmgResist)
-			end
-			if v:ScreenPosition(pos) then
-				if v.health < damageult then
-					drawManager:DrawText(pos.x-8,pos.y-50,0xFFFFFFFF,"KILL!")	
-				else
-					drawManager:DrawText(pos.x-8,pos.y-50,0xFFFFFFFF,math.floor(damageult).."")	
-				end
-			end
-		end
-	end
-end
---script:RegisterEvent(EVENT_FRAME,Draw)
 script:RegisterEvent(EVENT_TICK,Tick)
