@@ -8,9 +8,12 @@
  0 1 1 0 0 0 0 1    
  0 1 1 1 1 0 0 0
 
-			Hooking  v1.0a
+			Hooking  v1.0b
 
 		Changelog:
+			v1.0b:
+			 - Slight performance tweaks
+
 			v1.0a:
 			 - Lowered menu Width
 
@@ -59,11 +62,11 @@ function Tick( tick )
 
 	local hook = me:FindSpell("pudge_meat_hook")
 	if hook then
+		skillShot:Enable()
 		ScriptConfig:SetVisible(true)
 		if me:CanCast() and hook:CanBeCasted() then
 			target = targetFind:GetLastMouseOver(hook.castRange + 100)
 			if target then
-				skillShot:Enable()
 				SetGUIState(3)
 				if gui.target.text ~= "Target: "..target.name then
 					gui.target:SetText("Target: "..target.name)
@@ -79,14 +82,12 @@ function Tick( tick )
 					end
 				end
 			else
-				skillShot:Disable()
 				SetGUIState(2)
 				if gui.search.text ~= "Search Range: "..hook.castRange + 100 then
 					gui.search:SetText("Search Range: "..hook.castRange + 100)
 				end
 			end
 		else
-			skillShot:Disable()
 			SetGUIState(1)
 		end
 	else

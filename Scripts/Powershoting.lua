@@ -8,14 +8,11 @@
  0 1 1 0 0 0 0 1    
  0 1 1 1 1 0 0 0
 
-			Flaring  v1.0b
+			Powershoting  v1.0
+
+		Includes Auto-Powershot cancel
 
 		Changelog:
-			v1.0b:
-			 - Slight performance tweaks
-
-			v1.0a:
-			 - Lowered menu Width
 
 			v1.0:
 			 - Release   
@@ -27,20 +24,23 @@ require("libs.TargetFind")
 require("libs.HotkeyConfig")
 require("libs.Utils")
 
-ScriptConfig:SetName("Flaring")
+ScriptConfig:SetName("Powershoting")
 ScriptConfig:SetExtention(-.3)
 ScriptConfig:SetVisible(false)
-ScriptConfig:AddParam("active","Use Flare",SGC_TYPE_ONKEYDOWN,false,false,string.byte(" "))
+ScriptConfig:AddParam("active","Use Powershot",SGC_TYPE_ONKEYDOWN,false,false,string.byte("C"))
+sleepTick = 0
 target = nil
 range = 0
 gui = {
 	target = drawManager:CreateText(33,35,0xFFFFFFFF,"Target"),
-	distance = drawManager:CreateText(33,54,0xFFFFFFFF,"Distance"),
-	error = drawManager:CreateText(33,35,0xFFFFFFFF,"Can not use Rocket Flare"),
+	distance = drawManager:CreateText(33,45,0xFFFFFFFF,"Distance"),
+	search = drawManager:CreateText(33,35,0xFFFFFFFF,"Search"),
+	error = drawManager:CreateText(33,35,0xFFFFFFFF,"Can not use Powershot"),
 }
 
 gui.target.visible = false
 gui.distance.visible = false
+gui.search.visible = false
 gui.error.visible = false
 
 guiState = 0
@@ -48,7 +48,7 @@ guiState = 0
 skillShot:Disable()
 
 castTime = {}
-castTime["Rattletrap"] = 300
+castTime["Windrunner"] = 300
 castTime["Rubick"] = 100
 
 function Tick( tick )
@@ -57,14 +57,19 @@ function Tick( tick )
 		return
 	end
 
-	local flare = me:FindSpell("rattletrap_rocket_flare")
-	if flare then
+	local powershot = me:FindSpell("windrunner_powershot")
+
+	if powershot then
 		skillShot:Enable()
 		ScriptConfig:SetVisible(true)
-		if me:CanCast() and flare:CanBeCasted() then
-			target = targetFind:GetLowestEHP(99999,"magic",(1+flare.level)*40)
+		if powershot.channelTime > 0 and GetTotalGameTime() > powershot.channelTime + .49 then
+			me:Move(me.position)
+			return
+		end
+		if me:CanCast() and powershot:CanBeCasted() then
+			target = targetFind:GetLastMouseOver(powershot.castRange)
 			if target then
-				SetGUIState(2)
+				SetGUIState(3)
 				if gui.target.text ~= "Target: "..target.name then
 					gui.target:SetText("Target: "..target.name)
 				end
@@ -73,14 +78,17 @@ function Tick( tick )
 				end
 
 				if ScriptConfig.active then
-					local xyz = skillShot:BlockableSkillShotXYZ(me,target,castTime[me.name],1600,125,true)
-					if xyz then
-						me:CastAbility(flare,xyz)
+					local xyz = skillShot:SkillShotXYZ(me,target,castTime[me.name]+500,3000)
+					if xyz and GetDistance2D(xyz,me) < powershot.castRange then
+						me:CastAbility(powershot,(xyz - me.position) * 600 / GetDistance2D(xyz,me) + me.position)
 						Sleep(250)
 					end
 				end
 			else
-				SetGUIState(0)
+				SetGUIState(2)
+				if gui.search.text ~= "Search Range: "..powershot.castRange then
+					gui.search:SetText("Search Range: "..powershot.castRange)
+				end
 			end
 		else
 			SetGUIState(1)
@@ -97,17 +105,25 @@ function SetGUIState(state)
 		if state == 0 then
 			gui.target.visible = false
 			gui.distance.visible = false
+			gui.search.visible = false
 			gui.error.visible = false
 		elseif state == 1 then
 			gui.target.visible = false
 			gui.distance.visible = false
+			gui.search.visible = false
 			gui.error.visible = true
 		elseif state == 2 then
+			gui.target.visible = false
+			gui.distance.visible = false
+			gui.search.visible = true
+			gui.error.visible = false
+		elseif state == 3 then
 			gui.target.visible = true
 			gui.distance.visible = true
+			gui.search.visible = false
 			gui.error.visible = false
 		end
-		guiState = state0xFFFFFFFF
+		guiState = state
 	end
 end
 
