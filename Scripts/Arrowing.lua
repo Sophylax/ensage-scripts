@@ -8,9 +8,12 @@
  0 1 1 0 0 0 0 1    
  0 1 1 1 1 0 0 0
 
-			Arrowing  v1.0a
+			Arrowing  v1.0b
 
 		Changelog:
+			v1.0b:
+			 - Slight performance tweaks
+
 			v1.0a:
 			 - Lowered menu Width
 
