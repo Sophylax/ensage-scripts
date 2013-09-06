@@ -11,11 +11,14 @@ require("libs.HotkeyConfig")
  0 1 1 0 0 0 0 1    
  0 1 1 1 1 0 0 0 
 
-			Auto Armlet Toggle  v1.0a
+			Auto Armlet Toggle  v1.0b
 
 		This script uses armlet to gain hp when your hero is below a specified health.
 
 		Changelog:
+			v1.0b:
+			 - Script now checks armlet cooldown even if it is activated by the user
+
 			v1.0a:
 			 - Script now disables itself if the user is under Ice Blast effect
 			 - Lowered menu Width
@@ -49,13 +52,13 @@ function Tick( tick )
 
 	local armState = me:DoesHaveModifier("modifier_item_armlet_unholy_strength")
 
-	if not me:DoesHaveModifier("modifier_ice_blast") and ScriptConfig.active and SleepCheck() then
+	if not me:DoesHaveModifier("modifier_ice_blast") and ScriptConfig.active and armlet.cd == 0 and SleepCheck() then
 		if me.health <= ScriptConfig.minhp + 0 then
 			if armState then
 				me:SafeCastItem("item_armlet")
 			end
 			me:SafeCastItem("item_armlet")
-			Sleep(2000)
+			Sleep(1000)
 		end
 	end
 end
