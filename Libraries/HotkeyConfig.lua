@@ -8,7 +8,7 @@
  0 1 1 0 0 0 0 1    
  0 1 1 1 1 0 0 0    
 
-				Hotkey Configuration Library
+				Hotkey Configuration Library v1.1
 
 		Save as: HotkeyConfig.lua into Ensage\Scripts\libs.
 
@@ -79,6 +79,14 @@
 			ScriptConfig:AddParam("TestStrSpin", "Test String Spin", SGC_TYPE_CYCLE, false, 5, 84, {"one","two","three","four","five","six","seven","eight","nine","ten"})
 
 			script:RegisterEvent(EVENT_TICK, Tick)
+
+		Changelog:
+			v1.1
+			 - Fixed a bug when it tries to save config with no keys bound to a parameter
+			 - Added RightClick input for SGC_TYPE_NUMCYCLE and SGC_TYPE_CYCLE parameters which will make them cycle bacwards
+
+			v1.0:
+			 - Release
 ]]
 
 --== SETTINGS ==--
@@ -290,46 +298,64 @@ function ConfigGUI:New(name)
 			end
 		elseif self._cfg[index].type == SGC_TYPE_TOGGLE then
 			if tonumber(self._cfg[index].key) == tonumber(code) then
-				if (self._cfg[index].last == KEY_UP or self._cfg[index].last == nil) and msg == KEY_DOWN then
+				if (self._cfg[index].last == KEY_UP or self._cfg[index].last == nil) and (msg == KEY_DOWN or msg == RBUTTON_DOWN) then
 					self[self._cfg[index].id] = not self[self._cfg[index].id]
 				success = true
 					self:SaveCfg()
 				end
 				self._cfg[index].last = msg
-			elseif tonumber(code) == 1 then
+			elseif (msg == LBUTTON_DOWN or msg == RBUTTON_DOWN) then
 				self[self._cfg[index].id] = not self[self._cfg[index].id]
 				success = true
 				self:SaveCfg()
 			end
 		elseif self._cfg[index].type == SGC_TYPE_CYCLE then
 			if tonumber(self._cfg[index].key) == tonumber(code) then
-				if (self._cfg[index].last == KEY_UP or self._cfg[index].last == nil) and msg == KEY_DOWN then
-					self[self._cfg[index].id] = (self[self._cfg[index].id])%#self._cfg[index].table + 1
+				if (self._cfg[index].last == KEY_UP or self._cfg[index].last == nil) and (msg == KEY_DOWN or msg == RBUTTON_DOWN) then
+					if msg == RBUTTON_DOWN then
+						self[self._cfg[index].id] = (self[self._cfg[index].id])%#self._cfg[index].table - 1
+					else
+						self[self._cfg[index].id] = (self[self._cfg[index].id])%#self._cfg[index].table + 1
+					end
 				success = true
 					self:SaveCfg()
 				end
 				self._cfg[index].last = msg
-			elseif tonumber(code) == 1 then
-				self[self._cfg[index].id] = (self[self._cfg[index].id])%#self._cfg[index].table + 1
+			elseif (msg == LBUTTON_DOWN or msg == RBUTTON_DOWN) then
+				if msg == RBUTTON_DOWN then
+					self[self._cfg[index].id] = (self[self._cfg[index].id])%#self._cfg[index].table - 1
+				else
+					self[self._cfg[index].id] = (self[self._cfg[index].id])%#self._cfg[index].table + 1
+				end
 				success = true
 				self:SaveCfg()
 			end
 		elseif self._cfg[index].type == SGC_TYPE_NUMCYCLE then
 			if tonumber(self._cfg[index].key) == tonumber(code) then
-				if (self._cfg[index].last == KEY_UP or self._cfg[index].last == nil) and msg == KEY_DOWN then
-					local newNum = self[self._cfg[index].id] + self._cfg[index].step
+				if (self._cfg[index].last == KEY_UP or self._cfg[index].last == nil) and (msg == KEY_DOWN or msg == RBUTTON_DOWN) then
+					local newNum = self[self._cfg[index].id]
+					if msg == RBUTTON_DOWN then
+						newNum = newNum - self._cfg[index].step
+					else
+						newNum = newNum + self._cfg[index].step
+					end
 					if newNum < self._cfg[index].min then
 						newNum = self._cfg[index].max
 					elseif newNum > self._cfg[index].max then
 						newNum = self._cfg[index].min
 					end
 					self[self._cfg[index].id] = newNum
-				success = true
+					success = true
 					self:SaveCfg()
 				end
 				self._cfg[index].last = msg
-			elseif tonumber(code) == 1 then
-				local newNum = self[self._cfg[index].id] + self._cfg[index].step
+			elseif (msg == LBUTTON_DOWN or msg == RBUTTON_DOWN) then
+				local newNum = self[self._cfg[index].id]
+				if msg == RBUTTON_DOWN then
+					newNum = newNum - self._cfg[index].step
+				else
+					newNum = newNum + self._cfg[index].step
+				end
 				if newNum < self._cfg[index].min then
 					newNum = self._cfg[index].max
 				elseif newNum > self._cfg[index].max then
@@ -342,6 +368,7 @@ function ConfigGUI:New(name)
 		end
 		if success then
 			self:UpdateLabel(index)
+			return true
 		end		
 	end
 
@@ -438,10 +465,12 @@ function ConfigGUI:New(name)
 	end
 
 	function obj:LowerObject(drawObj,_y)
-		if drawObj.w then
-			drawObj:SetPosition(drawObj.x,drawObj.y + _y,drawObj.w,drawObj.h)
-		else
-			drawObj:SetPosition(drawObj.x,drawObj.y + _y)
+		if drawObj then
+			if drawObj.w then
+				drawObj:SetPosition(drawObj.x,drawObj.y + _y,drawObj.w,drawObj.h)
+			else
+				drawObj:SetPosition(drawObj.x,drawObj.y + _y)
+			end
 		end
 	end
 
@@ -455,12 +484,12 @@ function ConfigGUI:New(name)
 			for i,v in ipairs(self._cfg) do
 				if type(self[v.id]) == "boolean" then
 					if self[v.id] then
-						table.insert(lines,v.id.."=true;key="..v.key)
+						table.insert(lines,v.id.."=true;key="..tostring(v.key))
 					else
-						table.insert(lines,v.id.."=false;key="..v.key)
+						table.insert(lines,v.id.."=false;key="..tostring(v.key))
 					end
 				else
-					table.insert(lines,v.id.."="..self[v.id]..";key="..v.key)
+					table.insert(lines,v.id.."="..self[v.id]..";key="..tostring(v.key))
 				end
 			end
 		else
@@ -671,7 +700,7 @@ function ConfigGUI:New(name)
 			else
 				self._settings.visuals.permaShow[pId].value = drawManager:CreateText(SIDE_MARGIN + self._settings.extention*BUTTON_W + 3*BUTTON_W/2 - string.len(tostring(self[newParam.id]))*5*FONT_SIZE/12 - 5,TOP_MARGIN + (showRow + startRow)*BUTTON_H + (BUTTON_H - FONT_SIZE)/2,TEXT_COLOR,tostring(self[newParam.id]))
 			end
-			self._settings.visuals.permaShow[pId].name.value = visibility
+			self._settings.visuals.permaShow[pId].value.visible = visibility
 	    	self._settings.showCount = self._settings.showCount + 1
 	    end
 
@@ -816,7 +845,7 @@ function _SCNFGKey(msg,code)
 			ScriptConfig:SaveCfg()
 			return
 		end
-	elseif code == 0x01 and msg == LBUTTON_DOWN then
+	elseif msg == LBUTTON_DOWN or msg == RBUTTON_DOWN then
 		if not ScriptConfig._settings.menuOpen then
 			local mainRow = ScriptConfig._settings.mR
 			if mainRow and IsMouseOnRect(ScriptConfig._settings.visuals.main.inside) then
@@ -831,8 +860,9 @@ function _SCNFGKey(msg,code)
 					ScriptConfig._settings.visuals.button[v.id].key:SetText("ASSIGN A KEY")
 					match = true
 				elseif v.type ~= SGC_TYPE_ONKEYDOWN and IsMouseOnRect(ScriptConfig._settings.visuals.button[v.id].bg3) then
-					ScriptConfig:ParamKey(i,msg,code)
 					match = true
+					local re = ScriptConfig:ParamKey(i,msg,code)
+					return re
 				end
 			end
 			if not match then
