@@ -11,9 +11,12 @@ require("libs.VectorOp")
  0 1 1 0 0 0 0 1    
  0 1 1 1 1 0 0 0 
 
-			Illusion Delta Split v1.0
+			Illusion Delta Split v1.0a
 
 		Changelog:
+			v1.0a:
+			 - Added Chat Detection
+
 			v1.0:
 			 - Release
 
@@ -31,7 +34,7 @@ function Tick(msg,code)
 		return
 	end
 
-	if IsKeyDown(string.byte("V")) and SleepCheck() then
+	if not IsChatOpen() and IsKeyDown(string.byte("V")) and SleepCheck() then
 		local alpha = vectorOp:GetXYAngle(engineClient.mousePosition - me.position)
 		local dAlpha = 2*math.pi/(#phantoms + 1)
 		me:Move(engineClient.mousePosition)
