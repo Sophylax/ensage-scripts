@@ -12,7 +12,7 @@ require("libs.HotkeyConfig")
  0 1 1 0 0 0 0 1    
  0 1 1 1 1 0 0 0 
 
-			Storm Spirit Combo  v1.1
+			Storm Spirit Combo  v1.1a
 
 		If target is nearby (vortex range):
 			Vortex - Orchid - Veil - Shiva - Dagon - Attack - Remnant - Attack - Ball Lightning out - Sheepstick - Attack
@@ -21,6 +21,9 @@ require("libs.HotkeyConfig")
 			Ball Lightning In - Orchid - Veil - Attack - Vortex - Shiva - Dagon - Attack - Remnant - Attack - Ball Lightning - Sheepstick - Attack
 
 		Changelog:
+			v1.1a:
+			 - Minor speed increase
+
 			v1.1
 			 - Script will not repeat the combo if combo key isn't released.
 			 - Fixed the bug when user tries to combo while mouse is on HUD which causes storm to fly to mid.
@@ -62,7 +65,12 @@ function Tick(tick)
 	local roflSpeed = 625 * (rofl.level + 1)
 
 	if ScriptConfig.combo and SleepCheck() then
-		target = targetFind:GetLastMouseOver(vortex.castRange)
+		local target = nil
+		if stage <= 0 then
+			target = targetFind:GetLastMouseOver(600)
+		else
+			target = targetFind:GetLastMouseOver(vortex.castRange)
+		end
 	
 		if target then
 			if stage == -3 then
@@ -99,7 +107,12 @@ function Tick(tick)
 			elseif stage == 0 then
 				if me:SafeCastAbility(vortex,target) then
 					stage = stage + 1
-					Sleep(castSleep + 158)
+					local distanceDelay = 1000*(me:GetDistance2D(target)/me.moveSpeed)
+					if distanceDelay > 0 then
+						Sleep(castSleep + 158 + distanceDelay)
+					else
+						Sleep(castSleep + 158)
+					end
 					return
 				end
 			elseif stage == 1 then
@@ -206,7 +219,6 @@ function Tick(tick)
 			elseif stage == 10 then
 				QueueNextAction()
 				me:Attack(target)
-				stage = stage + 1
 				Sleep(1000)
 				return
 			end
