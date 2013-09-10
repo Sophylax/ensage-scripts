@@ -10,15 +10,57 @@ require("libs.Utils")
  0 1 1 0 0 0 0 1    
  0 1 1 1 1 0 0 0 
 
-			Illusion Micro v1.0
+			Illusion Micro v1.1
 
 		This script utilizes middle-mouse button to control illusions.
 
 		Changelog:
+			v1.1:
+			 - Newly Created Illusions now attack nearest hero in 800 range if there is any.
+
 			v1.0:
 			 - Release
 
 ]]
+
+init = false
+
+illuTable = {}
+
+function Tick(tick)
+	if not PlayingGame() then
+		init = false
+		return
+	end
+
+	Init()
+
+	local phantoms = entityList:FindEntities({type = TYPE_HERO, controllable = true, team = me.team, illusion = true, alive = true})
+	for i,v in ipairs(phantoms) do
+		if not illuTable[v.handle] then
+			PseudoEntityAdd(v)
+			illuTable[v.handle] = true
+		end
+	end
+end
+
+function PseudoEntityAdd(entity)
+	local enemies = entityList:FindEntities({type = TYPE_HERO, controllable = true, team = TEAM_ENEMY, illusion = false, alive = true, distance = {entity,800}})
+	table.sort(enemies,function(a,b) return entity:GetDistance2D(a)<entity:GetDistance2D(b) end)
+	if #enemies > 0 then
+		entity:Attack(enemies[1])
+	end
+end
+
+function Init()
+	if not init then
+		init = true
+		local phantoms = entityList:FindEntities({type = TYPE_HERO, controllable = true, team = me.team, illusion = true, alive = true})
+		for i,v in ipairs(phantoms) do
+			illuTable[v.handle] = true
+		end
+	end
+end
 
 
 function Key(msg,code)
@@ -53,3 +95,4 @@ function Key(msg,code)
 end
 
 script:RegisterEvent(EVENT_KEY,Key)
+script:RegisterEvent(EVENT_TICK,Tick)
