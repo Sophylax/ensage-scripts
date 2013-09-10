@@ -1,4 +1,5 @@
 require("libs.Utils")
+require("libs.HotkeyConfig")
 
 --[[
  0 1 0 1 0 0 1 1    
@@ -10,11 +11,13 @@ require("libs.Utils")
  0 1 1 0 0 0 0 1    
  0 1 1 1 1 0 0 0 
 
-			Illusion Micro v1.1
+			Illusion Micro v1.1a
 
 		This script utilizes middle-mouse button to control illusions.
 
 		Changelog:
+			v1.1a:
+			 - Implementend HotkeyConfig to turn on/off auto attack.
 			v1.1:
 			 - Newly Created Illusions now attack nearest hero in 800 range if there is any.
 
@@ -23,6 +26,12 @@ require("libs.Utils")
 
 ]]
 
+ScriptConfig:SetName("Illusion Micro")
+ScriptConfig:SetExtention(-.3)
+ScriptConfig:SetVisible(false)
+
+ScriptConfig:AddParam("autoAttack","Auto-Attack",SGC_TYPE_TOGGLE,false,true,nil)
+
 init = false
 
 illuTable = {}
@@ -30,6 +39,7 @@ illuTable = {}
 function Tick(tick)
 	if not PlayingGame() then
 		init = false
+		ScriptConfig:SetVisible(false)
 		return
 	end
 
@@ -38,7 +48,9 @@ function Tick(tick)
 	local phantoms = entityList:FindEntities({type = TYPE_HERO, controllable = true, team = me.team, illusion = true, alive = true})
 	for i,v in ipairs(phantoms) do
 		if not illuTable[v.handle] then
-			PseudoEntityAdd(v)
+			if ScriptConfig.autoAttack then
+				PseudoEntityAdd(v)
+			end
 			illuTable[v.handle] = true
 		end
 	end
@@ -54,6 +66,8 @@ end
 
 function Init()
 	if not init then
+		illuTable = {}
+		ScriptConfig:SetVisible(true)
 		init = true
 		local phantoms = entityList:FindEntities({type = TYPE_HERO, controllable = true, team = me.team, illusion = true, alive = true})
 		for i,v in ipairs(phantoms) do
