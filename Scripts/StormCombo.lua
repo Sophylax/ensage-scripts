@@ -1,5 +1,6 @@
 require("libs.Utils")
 require("libs.TargetFind")
+require("libs.HotkeyConfig")
 
 --[[
  0 1 0 1 0 0 1 1    
@@ -11,7 +12,7 @@ require("libs.TargetFind")
  0 1 1 0 0 0 0 1    
  0 1 1 1 1 0 0 0 
 
-			Storm Spirit Combo  v1.0
+			Storm Spirit Combo  v1.1
 
 		If target is nearby (vortex range):
 			Vortex - Orchid - Veil - Shiva - Dagon - Attack - Remnant - Attack - Ball Lightning out - Sheepstick - Attack
@@ -20,11 +21,21 @@ require("libs.TargetFind")
 			Ball Lightning In - Orchid - Veil - Attack - Vortex - Shiva - Dagon - Attack - Remnant - Attack - Ball Lightning - Sheepstick - Attack
 
 		Changelog:
+			v1.1
+			 - Script will not repeat the combo if combo key isn't released.
+			 - Fixed the bug when user tries to combo while mouse is on HUD which causes storm to fly to mid.
+			 - Fixed the bug when vortex is used too close to target which causes storm to fly to mid.
 
 			v1.0:
 			 - Release
 
 ]]
+
+ScriptConfig:SetName("Storm Combo")
+ScriptConfig:SetExtention(-.3)
+ScriptConfig:SetVisible(false)
+
+ScriptConfig:AddParam("combo","Combo",SGC_TYPE_ONKEYDOWN,false,false,string.byte("Z"))
 
 stage = 0
 itemSleep = 75
@@ -32,13 +43,17 @@ castSleep = 300
 
 function Tick(tick)
 	if not PlayingGame() then
+		ScriptConfig:SetVisible(false)
 		return
 	end
 
 	if me.name ~= "StormSpirit" then
+		ScriptConfig:SetVisible(false)
 		script:Disable()
 		return
 	end
+
+	ScriptConfig:SetVisible(true)
 
 	local remnant = me:FindSpell("storm_spirit_static_remnant")
 	local vortex = me:FindSpell("storm_spirit_electric_vortex")
@@ -46,7 +61,7 @@ function Tick(tick)
 
 	local roflSpeed = 625 * (rofl.level + 1)
 
-	if IsKeyDown(string.byte("Z")) and SleepCheck() then
+	if ScriptConfig.combo and SleepCheck() then
 		target = targetFind:GetLastMouseOver(vortex.castRange)
 	
 		if target then
@@ -160,9 +175,14 @@ function Tick(tick)
 				return
 			elseif stage == 8 then
 				local dest = target.position - me.position
-				dest = dest / me:GetDistance2D(target)
+				if me:GetDistance2D(target) > 0 then
+					dest = dest / me:GetDistance2D(target)
+				else
+					dest = Vector(math.cos(me.rotR),math.sin(me.rotR),0)
+				end
 				dest = dest * (me.attackRange)
 				dest = target.position + dest
+				print(dest.x,dest.y)
 				if me:SafeCastAbility(rofl,dest) then
 					stage = stage + 1
 					Sleep(300)
@@ -186,12 +206,12 @@ function Tick(tick)
 			elseif stage == 10 then
 				QueueNextAction()
 				me:Attack(target)
-				stage = 0
+				stage = stage + 1
 				Sleep(1000)
 				return
 			end
 
-		elseif stage == 0 then
+		elseif stage == 0 and GetDistance2D(engineClient.mousePosition,Vector(0,0,0)) > 0 then
 			if me:SafeCastAbility(rofl,engineClient.mousePosition) then
 				stage = -3
 			end
