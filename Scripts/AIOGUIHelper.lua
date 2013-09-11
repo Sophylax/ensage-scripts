@@ -1,4 +1,3 @@
-
 --[[
  0 1 0 1 0 0 1 1    
  0 1 1 0 1 1 1 1        ____          __        __         
@@ -51,7 +50,24 @@
         -Zynox: For Ensage, RuneMarker Script and RoshanTimer Script
         -Ryan: For completely adapting the script to 4:3 resolutions
         -4xing: For his idea of Side-Screen enemy monitoring
+
+        Changelog:
+            v1.0a:
+             - Added HotkeyConfig Support for disabling features
+
+            v1.0:
+             - Release
 ]]
+
+require("libs.HotkeyConfig")
+ScriptConfig:SetName("AIOGUI")
+ScriptConfig:SetExtention(-.3)
+ScriptConfig:SetVisible(false)
+
+ScriptConfig:AddParam("roshBox","Roshan Monitor",SGC_TYPE_TOGGLE,false,true,nil)
+ScriptConfig:AddParam("runeBox","Rune Monitor",SGC_TYPE_TOGGLE,false,true,nil)
+ScriptConfig:AddParam("missingMonitor","Missing Monitor",SGC_TYPE_TOGGLE,false,true,nil)
+ScriptConfig:AddParam("sideView","SideScreen Monitor",SGC_TYPE_TOGGLE,false,true,nil)
 
 
 --==A lot of constants==--
@@ -104,6 +120,17 @@ function Tick(tick)
     end
 
     DrawInit()
+
+    SetVisibilityOfATable(roshBox,ScriptConfig.roshBox)
+
+    SetVisibilityOfATable(runeBox,ScriptConfig.runeBox)
+    if minimapRune then
+        minimapRune.visible = ScriptConfig.runeBox
+    end
+
+    SetVisibilityOfATable(missingMonitor,ScriptConfig.missingMonitor)
+
+    SetVisibilityOfATable(sideView,ScriptConfig.sideView)
 
     RoshanTick()
 
@@ -243,6 +270,7 @@ function SideTick()
                         sideView[v.handle] = MantainSideBox(v,_x,_y,sideView[v.handle])
                     else
                         sideView[v.handle] = CreateSideBox(v,_x,_y)
+                        SetVisibilityOfATable(sideView[v.handle],ScriptConfig.sideView)
                     end
                 elseif sideView[v.handle] then
                     if sideView[v.handle].border then
@@ -341,6 +369,7 @@ function RuneTick()
             end
             runeBox.bmp:Destroy()
             runeBox.bmp = drawManager:CreateRectM(location.rune.x,location.rune.y+1,28,14,"NyanUI/items/bottle_empty")
+            runeBox.bmp.visible = ScriptConfig.runeBox
             runeBox.text:SetText("No Rune")
             return 
     end
@@ -372,6 +401,7 @@ function RuneTick()
         local runeMinimap = MapToMinimap(rune)
         local size = 20
         minimapRune = drawManager:CreateRectM(runeMinimap.x-size/2,runeMinimap.y-size/2,size,size,"/NyanUI/minirunes/"..filename)
+        minimapRune.visible = ScriptConfig.runeBox
         if rune.x == -2272 then
                 runeMsg = runeMsg .. " TOP"
         else
@@ -380,6 +410,7 @@ function RuneTick()
         runeBox.text:SetText(runeMsg)
         runeBox.bmp:Destroy()
         runeBox.bmp = drawManager:CreateRectM(location.rune.x,location.rune.y,16,16,"/NyanUI/runes/"..filename)
+        runeBox.bmp.visible = ScriptConfig.runeBox
     end
 end
 
@@ -426,8 +457,21 @@ function RoshAlive()
         return false
 end
 
+function SetVisibilityOfATable(ta,b)
+    for k,v in pairs(ta) do
+        if type(v) == "table" then
+            SetVisibilityOfATable(v,b)
+        else
+            v.visible = b
+        end
+    end
+end
+
+
 function DeInit()
     if init then
+        ScriptConfig:SetVisible(false)
+
         deathTick = nil
 
         roshBox = {}
@@ -454,6 +498,8 @@ end
 
 function DrawInit()
     if not init then
+        ScriptConfig:SetVisible(true)
+
         roshBox = {}
         roshBox.inside = drawManager:CreateRect(location.rosh.x,location.rosh.y,95,18,0x000000FF)
         roshBox.inBorder = drawManager:CreateRect(location.rosh.x-1,location.rosh.y-1,97,20,0x000000A0,true)
