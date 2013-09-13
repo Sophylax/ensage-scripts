@@ -8,7 +8,7 @@
  0 1 1 0 0 0 0 1    
  0 1 1 1 1 0 0 0  
 
-                All-in-One GUI Helper
+                All-in-One GUI Helper v1.0b
 
         Rune and Roshan monitor at the top bar
 
@@ -52,6 +52,11 @@
         -4xing: For his idea of Side-Screen enemy monitoring
 
         Changelog:
+            v1.0b:
+             - Added custom missing messages for Invisibility/Smoke
+             - Added an arrow shape to indicate last-known direction to the last known position
+             - Swithced from EVENT_TICK to EVENT_FRAME for some sync improving (experimental, may cause performace drop)
+
             v1.0a:
              - Added HotkeyConfig Support for disabling features
 
@@ -59,6 +64,7 @@
              - Release
 ]]
 
+require("libs.Utils")
 require("libs.HotkeyConfig")
 ScriptConfig:SetName("AIOGUI")
 ScriptConfig:SetExtention(-.3)
@@ -160,8 +166,53 @@ function MissingTick()
                 missingMonitor.side.heroes[v.handle].mapText.top = nil
                 missingMonitor.side.heroes[v.handle].mapText.bot = nil
             end
+            if v.visible then
+                if v:DoesHaveModifier("modifier_treant_natures_guise") then
+                    missingMonitor.side.heroes[v.handle].customText = "Invis"
+                elseif v:DoesHaveModifier("modifier_rune_invis") then
+                    missingMonitor.side.heroes[v.handle].customText = "Invis"
+                elseif v:DoesHaveModifier("modifier_weaver_shukuchi") then
+                    missingMonitor.side.heroes[v.handle].customText = "Invis"
+                elseif v:DoesHaveModifier("modifier_phantom_lancer_doppelwalk_invis") then
+                    missingMonitor.side.heroes[v.handle].customText = "Invis"
+                elseif v:DoesHaveModifier("modifier_item_invisibility_edge_windwalk") then
+                    missingMonitor.side.heroes[v.handle].customText = "Invis"
+                elseif v:DoesHaveModifier("modifier_clinkz_wind_walk") then
+                    missingMonitor.side.heroes[v.handle].customText = "Invis"
+                elseif v:DoesHaveModifier("modifier_bounty_hunter_wind_walk") then
+                    missingMonitor.side.heroes[v.handle].customText = "Invis"
+                elseif v:DoesHaveModifier("modifier_nyx_assassin_vendetta") then
+                    missingMonitor.side.heroes[v.handle].customText = "Invis"
+                elseif v:DoesHaveModifier("modifier_broodmother_spin_web_invisible_applier") then
+                    missingMonitor.side.heroes[v.handle].customText = "Invis"
+                elseif v:DoesHaveModifier("modifier_lycan_summon_wolves_invisibility") then
+                    missingMonitor.side.heroes[v.handle].customText = "Invis"
+                elseif v:DoesHaveModifier("modifier_sandking_sand_storm_invis") then
+                    missingMonitor.side.heroes[v.handle].customText = "Invis"
+                elseif v:DoesHaveModifier("modifier_riki_permanent_invisibility") then
+                    missingMonitor.side.heroes[v.handle].customText = "Invis"
+                elseif v:DoesHaveModifier("modifier_invisible") then
+                    missingMonitor.side.heroes[v.handle].customText = "Invis"
+                elseif v:DoesHaveModifier("modifier_persistent_invisibility") then
+                    missingMonitor.side.heroes[v.handle].customText = "Invis"
+                elseif v:DoesHaveModifier("modifier_mirana_moonlight_shadow") then
+                    missingMonitor.side.heroes[v.handle].customText = "Invis"
+                elseif v:DoesHaveModifier("modifier_templar_assassin_meld") then
+                    missingMonitor.side.heroes[v.handle].customText = "Invis"
+                elseif v:DoesHaveModifier("modifier_slark_shadow_dance") then
+                    missingMonitor.side.heroes[v.handle].customText = "Invis"
+                elseif v:DoesHaveModifier("modifier_invoker_ghost_walk_self") then
+                    missingMonitor.side.heroes[v.handle].customText = "Invis"
+                elseif v:DoesHaveModifier("modifier_item_shadow_amulet_fade") then
+                    missingMonitor.side.heroes[v.handle].customText = "Invis"
+                elseif v:DoesHaveModifier("modifier_smoke_of_deceit") then
+                    missingMonitor.side.heroes[v.handle].customText = "Smoked"
+                else
+                    missingMonitor.side.heroes[v.handle].customText = nil
+                end
+            end
             if lastseenList[v.handle] == nil and v.visible == false then
-                lastseenList[v.handle] = GetGameTime()
+                lastseenList[v.handle] = GetTotalGameTime()
                 missingMonitor.side.heroes[v.handle].missTime.color = 0xFFFFFFFF
                 missingMonitor.side.heroes[v.handle].etaTime.color = 0xFFFFFFFF
                 missingMonitor.side.heroes[v.handle].visibleText.color = 0x00000000
@@ -179,6 +230,8 @@ function MissingTick()
                    missingMonitor.side.heroes[v.handle].mapText.top = nil
                     missingMonitor.side.heroes[v.handle].mapText.bot:Destroy()
                    missingMonitor.side.heroes[v.handle].mapText.bot = nil
+                    missingMonitor.side.heroes[v.handle].mapText.eff = nil
+                    collectgarbage("collect")
                 end
             end
             if not v.visible and not v.illusion then
@@ -191,6 +244,35 @@ function MissingTick()
                 --Mainmap Draw
                 local pos = Vector()
                 if v:ScreenPosition(pos) and IsInScreen(pos) and v.alive then
+                    if SleepCheck(v.handle.."ef") and ScriptConfig.missingMonitor then
+                        local side = Vector(3*math.cos(v.rotR + math.pi/2),3*math.sin(v.rotR + math.pi/2),0)
+                        local front = Vector(4*math.cos(v.rotR),4*math.sin(v.rotR),0)
+                        missingMonitor.side.heroes[v.handle].mapText.eff = {
+                            Effect(v.position+(side*6),"draw_commentator"),
+                            Effect(v.position+(side*5)+(front),"draw_commentator"),
+                            Effect(v.position+(side*4)+(front*2),"draw_commentator"),
+                            Effect(v.position+(side*3)+(front*3),"draw_commentator"),
+                            Effect(v.position+(side*2)+(front*4),"draw_commentator"),
+                            Effect(v.position+(side)+(front*5),"draw_commentator"),
+                            Effect(v.position+(front*6),"draw_commentator"),
+                            Effect(v.position-(side*1)+(front*5),"draw_commentator"),
+                            Effect(v.position-(side*2)+(front*4),"draw_commentator"),
+                            Effect(v.position-(side*3)+(front*3),"draw_commentator"),
+                            Effect(v.position-(side*4)+(front*2),"draw_commentator"),
+                            Effect(v.position-(side*5)+(front),"draw_commentator"),
+                            Effect(v.position-(side*6),"draw_commentator"),
+                        }
+                        for k,l in ipairs(missingMonitor.side.heroes[v.handle].mapText.eff) do
+                            l:SetParameter(Vector(255,255,255))
+                        end
+                        Sleep(500,v.handle.."ef")
+                        collectgarbage("collect")
+                    end
+                    if not ScriptConfig.missingMonitor then
+                        missingMonitor.side.heroes[v.handle].mapText.eff = nil
+                        collectgarbage("collect")
+                    end
+
                     if not missingMonitor.side.heroes[v.handle].mapText.top then
                         missingMonitor.side.heroes[v.handle].mapText.top = drawManager:CreateText(math.floor(pos.x),math.floor(pos.y)-30,0xFFFFFFFF,v.name)
                         missingMonitor.side.heroes[v.handle].mapText.bot = drawManager:CreateText(math.floor(pos.x),math.floor(pos.y)-15,0xFFFFFFFF,math.floor(100*v.health/v.maxHealth).."% HP")
@@ -206,14 +288,22 @@ function MissingTick()
                 end
 
                 --Miss timer
-                local delta = GetGameTime() - lastseenList[v.handle]
+                local delta = GetTotalGameTime() - lastseenList[v.handle]
                 local minutes = math.floor(delta/60)
                 local seconds = delta%60
                 local ssText
-                if minutes > 0 then
-                        ssText = string.format("Missing: "..minutes..":%02d",seconds)
+                if missingMonitor.side.heroes[v.handle].customText then
+                    if minutes > 0 then
+                            ssText = string.format(missingMonitor.side.heroes[v.handle].customText..": "..minutes..":%02d",seconds)
+                    else
+                            ssText = string.format(missingMonitor.side.heroes[v.handle].customText..": %02d",seconds)
+                    end
                 else
-                        ssText = string.format("Missing: %02d",seconds)
+                    if minutes > 0 then
+                            ssText = string.format("Missing: "..minutes..":%02d",seconds)
+                    else
+                            ssText = string.format("Missing: %02d",seconds)
+                    end
                 end
                 missingMonitor.side.heroes[v.handle].missTime:SetText(ssText)
 
@@ -447,7 +537,7 @@ end
 --Function returns whether roshan is alive or not
 function RoshAlive()
         local entities = entityList:FindEntities({classId=CDOTA_Unit_Roshan})
-        tickDelta = GetGameTime()-deathTick
+        tickDelta = GetTotalGameTime()-deathTick
         if #entities > 0 and tickDelta > 15 then
                 local rosh = entities[1]
                 if rosh and rosh.alive then
@@ -461,7 +551,7 @@ function SetVisibilityOfATable(ta,b)
     for k,v in pairs(ta) do
         if type(v) == "table" then
             SetVisibilityOfATable(v,b)
-        else
+        elseif type(v) ~= "string" then
             v.visible = b
         end
     end
@@ -579,7 +669,7 @@ end
 
 function FireEvent( name )
     if name == "dota_roshan_kill" then
-            deathTick = GetGameTime()
+            deathTick = GetTotalGameTime()
     end
 end
 
@@ -612,7 +702,7 @@ end
 MinimapMapScaleX = location.minimap.w / MapWidth
 MinimapMapScaleY = location.minimap.h / MapHeight
 
-script:RegisterEvent(EVENT_TICK,Tick)
+script:RegisterEvent(EVENT_FRAME,Tick)
 script:RegisterEvent(EVENT_DOTA,FireEvent)
 script:RegisterEvent(EVENT_CLOSE,Close)
 script:RegisterEvent(EVENT_START,Close)
