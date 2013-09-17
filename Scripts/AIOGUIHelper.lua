@@ -52,6 +52,9 @@
         -4xing: For his idea of Side-Screen enemy monitoring
 
         Changelog:
+            v1.0c:
+             - Switched from GetTotalGameTime() to GetGameTime() for stability
+
             v1.0b:
              - Added custom missing messages for Invisibility/Smoke
              - Added an arrow shape to indicate last-known direction to the last known position
@@ -212,7 +215,7 @@ function MissingTick()
                 end
             end
             if lastseenList[v.handle] == nil and v.visible == false then
-                lastseenList[v.handle] = GetTotalGameTime()
+                lastseenList[v.handle] = GetGameTime()
                 missingMonitor.side.heroes[v.handle].missTime.color = 0xFFFFFFFF
                 missingMonitor.side.heroes[v.handle].etaTime.color = 0xFFFFFFFF
                 missingMonitor.side.heroes[v.handle].visibleText.color = 0x00000000
@@ -288,7 +291,7 @@ function MissingTick()
                 end
 
                 --Miss timer
-                local delta = GetTotalGameTime() - lastseenList[v.handle]
+                local delta = GetGameTime() - lastseenList[v.handle]
                 local minutes = math.floor(delta/60)
                 local seconds = delta%60
                 local ssText
@@ -537,7 +540,7 @@ end
 --Function returns whether roshan is alive or not
 function RoshAlive()
         local entities = entityList:FindEntities({classId=CDOTA_Unit_Roshan})
-        tickDelta = GetTotalGameTime()-deathTick
+        tickDelta = GetGameTime()-deathTick
         if #entities > 0 and tickDelta > 15 then
                 local rosh = entities[1]
                 if rosh and rosh.alive then
@@ -669,7 +672,7 @@ end
 
 function FireEvent( name )
     if name == "dota_roshan_kill" then
-            deathTick = GetTotalGameTime()
+            deathTick = GetGameTime()
     end
 end
 
