@@ -8,7 +8,7 @@
  0 1 1 0 0 0 0 1    
  0 1 1 1 1 0 0 0  
 
-                All-in-One GUI Helper v1.0b
+                All-in-One GUI Helper v1.0c
 
         Rune and Roshan monitor at the top bar
 
