@@ -25,6 +25,14 @@
 	|             Changelog            |
 	====================================
 
+		v1.1c:
+		 - Tweaked the libraries to make it fit the new LuaEntity class system
+		 - Reworked GetOwner
+		 - Added IsHidden for CDOTABaseAbility
+
+		v1.1b:
+		 - Fixed bugs related to LuaEntity:DamageTaken()
+
 		v1.1a:
 		 - PlayingGame() now returns false if game is paused.
 		 - Fixed SafeCastAbility and CastAbility
@@ -227,6 +235,8 @@
 				
 				LuaEntity:CanUseItems(): Returns true if the unit can use items.
 
+				LuaEntity:GetOwner(): Returns the owner entity of the entity. 	
+
 
 
 			-----> LuaEntity (CDOTABaseAbility) Functions<-----
@@ -237,7 +247,7 @@
 
 				LuaEntity:IsBeingChanneled(): Returns true if the ability is currently being channeled.
 
-				LuaEntity:GetOwner(): Returns the owner of the ability if there is one.	
+				LuaEntity:IsHidden(): Returns true if the ability is hidden from the UI.
 
 ]]
 
@@ -978,7 +988,6 @@ end
 function LuaEntity:SafeCastSpell(spellName,x,y,z)
 	assert(type(spellName) == "string", debug.getinfo(1, "n").name..": Invalid Spell Name")
 	local spell = self:FindSpell(spellName)
-	print(x and x.IsLinkensProtected and x:IsLinkensProtected() and spell:CanBeBlockedByLinkens() == true)
 	if spell and spell:CanBeCasted() and self:CanCast() and not (x and x.IsLinkensProtected and x:IsLinkensProtected() and spell:CanBeBlockedByLinkens() == true) then
 		local prev = SelectUnit(self)
 		if not x and not y and not z then
@@ -1011,7 +1020,7 @@ end
 
 --Searchs the LuaEntity's inventory for an item with given name and returns it if there is any.
 function LuaEntity:FindItem(itemName)
-	assert(type(itemName) == "string", debug.getinfo(1, "n").name..": Invalid Item Name")
+	assert(type(itemName) == "string")
 	local i = 1
 	if self then
 		while i < 7 do
@@ -1357,9 +1366,9 @@ function LuaEntity:DamageTaken(dmg,dmgType,source)
 				local amp = v.amp
 				if type(amp) == "table" then
 					if v.sourceTeam == -1 then
-						for k,l in pairs(entityList:FindEntities({type = TYPE_HERO, team = TEAM_ENEMY})) do
-							if not k.illusion then
-								local spell = k:FindSpell(v.sourceSpellName)
+						for k,l in pairs(entityList:FindEntities({type = TYPE_HERO})) do
+							if not l.illusion and l.team ~= self.team then
+								local spell = l:FindSpell(v.sourceSpellName)
 								if spell then
 									amp = amp[spell.level]
 									break
@@ -1397,7 +1406,7 @@ function LuaEntity:DamageTaken(dmg,dmgType,source)
 					end
 				elseif v.type == DAMAGE_MAGC then
 					if not self:IsMagicDmgImmune() and not self:IsInvul() then
-						tempDmg = tempDmg + temp * amp * (1 - self.magicDmgResist)
+						tempDmg = tempDmg + tempDmg * amp * (1 - self.magicDmgResist)
 					end
 				end
 			end
@@ -1405,9 +1414,9 @@ function LuaEntity:DamageTaken(dmg,dmgType,source)
 
 		--Exception External Amplify: Undying: Flesh Golem: Plauge
 		if self:DoesHaveModifier("modifier_undying_flesh_golem_plague_aura") then
-			for k,l in pairs(entityList:FindEntities({type = TYPE_HERO, team = TEAM_ENEMY})) do
-				if not k.illusion then
-					local spell = k:FindSpell(v.sourceSpellName)
+			for k,l in pairs(entityList:FindEntities({type = TYPE_HERO})) do
+				if not l.illusion and l.team ~= self.team then
+					local spell = l:FindSpell(v.sourceSpellName)
 					if spell then
 						local baseAmp = .05 * spell.level
 						if v:FindItem("item_ultimate_scepter") then
@@ -1429,15 +1438,15 @@ function LuaEntity:DamageTaken(dmg,dmgType,source)
 		end
 
 		--External Reduction
-		for i,v in ipairs(utils.externalDmgAmps) do
+		for i,v in ipairs(utils.externalDmgReducs) do
 			if self:DoesHaveModifier(v.modifierName) then
 				local reduce = v.reduce
 				if v.type == 1 then
 					if type(reduce) == "table" then
 						if v.sourceTeam == 1 then
-							for k,l in pairs(entityList:FindEntities({type = TYPE_HERO, team = me.team})) do
-								if not k.illusion then
-									local spell = k:FindSpell(v.sourceSpellName)
+							for k,l in pairs(entityList:FindEntities({type = TYPE_HERO, team = self.team})) do
+								if not l.illusion then
+									local spell = l:FindSpell(v.sourceSpellName)
 									if spell then
 										reduce = reduce[spell.level]
 										break
@@ -1456,13 +1465,14 @@ function LuaEntity:DamageTaken(dmg,dmgType,source)
 							end
 						end
 					end
+					print(reduce,v.modifierName)
 					tempDmg = tempDmg * (1 - reduce)
 				elseif tempDmg > 0 then
 					if type(reduce) == "table" then
 						if v.sourceTeam == 1 then
-							for k,l in pairs(entityList:FindEntities({type = TYPE_HERO, team = me.team})) do
-								if not k.illusion then
-									local spell = k:FindSpell(v.sourceSpellName)
+							for k,l in pairs(entityList:FindEntities({type = TYPE_HERO, team = self.team})) do
+								if not l.illusion then
+									local spell = l:FindSpell(v.sourceSpellName)
 									if spell then
 										reduce = reduce[spell.level]
 										break
@@ -1547,6 +1557,10 @@ function LuaEntity:CanUseItems()
 	return not self:FindFlag(7) and not self:FindFlag(8) and self.alive
 end
 
+function LuaEntity:GetOwner()
+	entityList:GetEntityByHandle(self:GetProperty("CBaseEntity","m_hOwnerEntity"))
+end
+
 --== LUAENTITY (CDOTABaseAbility) FUNCTIONS ==--
 
 --Returns if LuaEntity can be casted.
@@ -1565,28 +1579,9 @@ function LuaEntity:IsBeingChanneled()
 	return self.channelTime ~= 0
 end
 
-function LuaEntity:GetOwner()
-	local sameRot = {}
-	for i,v in ipairs(entityList:FindEntities({})) do
-		if self.rotR == v.rotR then
-			table.insert(sameRot,v)
-		end
-	end
-	if #sameRot == 1 then return sameRot[1] end
-	for i,v in ipairs(sameRot) do
-		local items = v:GetAllItems()
-		local spells = v:GetAllSpells()
-		for k,l in pairs(items) do
-			if self.handle == l.handle then
-				return v
-			end
-		end
-		for k,l in pairs(spells) do
-			if self.handle == l.handle then
-				return v
-			end
-		end
-	end
+--Returns if LuaEntity is hidden from the UI.
+function LuaEntity:IsHidden()
+	return self:GetProperty("CDOTABaseAbility","m_bHidden")
 end
 
 	--Code to apply all functions to the old LuaEntities.--
@@ -1633,10 +1628,21 @@ utils.entityFuncs = {
 	"CanBeBlockedByLinkens",
 	"IsBeingChanneled",
 	"GetOwner",
+	"IsHidden",
 }
 
-for i,v in ipairs(entityList:FindEntities({})) do
-	for k,l in pairs(utils.entityFuncs) do
-		v[l] = LuaEntity[l]
+utils.entityClasses = {
+	"LuaEntityNPC",
+	"LuaEntityAbility",
+	"LuaEntityItem",
+	"LuaEntityHeroMeepo",
+	"LuaEntityItemPowerTreads",
+	"LuaEntityCreep",
+	"LuaEntityHero",
+}
+
+for k,l in pairs(utils.entityFuncs) do
+	for i,v in ipairs(utils.entityClasses) do
+	_G[v][l] = LuaEntity[l]
 	end
 end
