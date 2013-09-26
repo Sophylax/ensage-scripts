@@ -8,13 +8,20 @@
  0 1 1 0 0 0 0 1    
  0 1 1 1 1 0 0 0  
 
-                All-in-One GUI Helper v1.0c
+                All-in-One GUI Helper v1.1
 
         Rune and Roshan monitor at the top bar
 
         Rune monitoring at the minimap
 
         Side-Screen enemy monitoring
+
+        Minimap locations of enemy couriers
+
+        Advanced Monitor
+        -Level, Stats, Damage, Armor and other information about enemies
+        -Levels and states of the spells of the enemies
+        -Items of enemies and their states, charges. Even items in their Stash!
 
         Missing hero monitor at the side of the minimap
         -When an enemy is missing ETA timer appears
@@ -52,6 +59,10 @@
         -4xing: For his idea of Side-Screen enemy monitoring
 
         Changelog:
+            v1.1:
+             - Added Advanced Monitor
+             - Added enemy couriers to the minimap
+
             v1.0c:
              - Switched from GetTotalGameTime() to GetGameTime() for stability
 
@@ -77,6 +88,8 @@ ScriptConfig:AddParam("roshBox","Roshan Monitor",SGC_TYPE_TOGGLE,false,true,nil)
 ScriptConfig:AddParam("runeBox","Rune Monitor",SGC_TYPE_TOGGLE,false,true,nil)
 ScriptConfig:AddParam("missingMonitor","Missing Monitor",SGC_TYPE_TOGGLE,false,true,nil)
 ScriptConfig:AddParam("sideView","SideScreen Monitor",SGC_TYPE_TOGGLE,false,true,nil)
+ScriptConfig:AddParam("cours","Enemy Couriers",SGC_TYPE_TOGGLE,false,true,nil)
+ScriptConfig:AddParam("advMon","Advanced Monitor",SGC_TYPE_TOGGLE,false,false,109)
 
 
 --==A lot of constants==--
@@ -97,6 +110,15 @@ MapBottom = -7200
 MapWidth = math.abs(MapLeft - MapRight)
 MapHeight = math.abs(MapBottom - MapTop)
 lastseenList = {}
+--AdvancedMonitor
+itemSize = Vector2D(32,16)
+gapSize = Vector2D(2,2)
+extraGap = Vector2D(10,20)
+fontSize = 10
+itemPercent = 88/124
+wi = 150
+ga = 4
+adVisible = false
 --Settings Table for 16 resolution
 ResTable = 
 {
@@ -123,7 +145,7 @@ ResTable =
 }
 
 function Tick(tick)
-    if not engineClient.inGame or engineClient.console or not me then
+    if not PlayingGame() then
         DeInit()
         return
     end
@@ -141,6 +163,8 @@ function Tick(tick)
 
     SetVisibilityOfATable(sideView,ScriptConfig.sideView)
 
+    SetVisibilityOfATable(cours,ScriptConfig.cours)
+
     RoshanTick()
 
     MissingTick()
@@ -148,15 +172,589 @@ function Tick(tick)
     RuneTick()
 
     SideTick()
+
+    CourierTick()
+
+    AdvancedMonitorTick( tick )
+end
+
+function CourierTick()
+    local dirty = false
+    local enemyCours = entityList:FindEntities({classId = CDOTA_Unit_Courier, alive = true, team = TEAM_ENEMY})
+    for i,v in ipairs(enemyCours) do
+        if v.visible then
+            local courMinimap = MapToMinimap(v)
+            local flying = v:GetProperty("CDOTA_Unit_Courier","m_bFlyingCourier")
+            if flying then
+                if not cours[v.handle] or not cours[v.handle].flying then
+                    cours[v.handle] = {}
+                    cours[v.handle].icon = drawManager:CreateRectM(courMinimap.x-10,courMinimap.y-6,21,12,"AIOGUI/courier_flying")
+                    cours[v.handle].icon.visible = ScriptConfig.cours
+                    cours[v.handle].vec = courMinimap
+                    cours[v.handle].flying = flying
+                    dirty = true
+                elseif GetDistance2D(courMinimap,cours[v.handle].vec) > 0 then
+                    cours[v.handle].icon.x,cours[v.handle].icon.y = courMinimap.x-10,courMinimap.y-6
+                end
+            else
+                if not cours[v.handle] or not cours[v.handle].flying then
+                    cours[v.handle] = {}
+                    cours[v.handle].icon = drawManager:CreateRectM(courMinimap.x-6,courMinimap.y-6,12,12,"AIOGUI/courier")
+                    cours[v.handle].icon.visible = ScriptConfig.cours
+                    cours[v.handle].vec = courMinimap
+                    cours[v.handle].flying = flying
+                    dirty = true
+                elseif GetDistance2D(courMinimap,cours[v.handle].vec) > 0 then
+                    cours[v.handle].icon.x,cours[v.handle].icon.y = courMinimap.x-6,courMinimap.y-6
+                end
+            end
+        else
+            cours[v.handle] = nil
+        end
+    end
+    if dirty then
+        collectgarbage("collect")
+    end
 end
 
 heroCount = 0
+
+function ColorTransfusionHealth(hpPerc)
+
+    local brightness = 200 --Out of 255
+
+    local _r = math.floor(brightness * (1 - 2*math.abs(0.5 - hpPerc)))
+    local _g = math.floor(brightness * (1 - 2*math.abs(0.5 - hpPerc)))
+
+    if hpPerc <= .5 then
+        _r = brightness
+    end
+
+    if hpPerc >= .5 then
+        _g = brightness
+    end
+
+    return _r*0x1000000 + _g*0x10000 + 0xFF
+
+end
+
+function DoesHeroHasStashItems(ent)
+    for i=7,12 do
+        if ent:GetItem(i) then
+            return true
+        end
+    end
+    return false
+end
+
+function AdvancedMonitorTick( tick )
+
+    if adVisible then
+
+        local STARTXY = Vector2D(5,drawManager.screenHeight-425-location.sideview.b)
+
+        local graphicsTable = advancedMonitor
+        local dirty = false
+        enemies = entityList:FindEntities({type = TYPE_HERO , team = TEAM_ENEMY , illusion = false}) 
+
+        local i = 1
+
+        for k,v in ipairs(enemies) do
+            if not v.illusion then
+                if not graphicsTable[v.handle] then
+                    graphicsTable[v.handle] = {}
+                end
+
+                local topLeft = STARTXY + Vector2D(0,itemSize.y + gapSize.y + extraGap.y) * (i - 1) * 2
+
+                if not advancedMonitor[v.handle].bg then
+                    graphicsTable[v.handle].bg = drawManager:CreateRect(topLeft.x-1,topLeft.y-5,348,76,0x000000D0)
+                    graphicsTable[v.handle].bg3 = drawManager:CreateRect(topLeft.x-1,topLeft.y-5,348,77,0x000000FF,true)
+                    advancedMonitor[v.handle].bg2 = drawManager:CreateRect(topLeft.x + itemSize.x*itemPercent + extraGap.x,topLeft.y+itemSize.y + gapSize.y,itemSize.x*itemPercent*6 + gapSize.x*5,itemSize.y,0x000000D0)
+                end
+
+                if not advancedMonitor[v.handle].portrait then
+
+                    --Portrait
+                    advancedMonitor[v.handle].portrait = drawManager:CreateRectM(topLeft.x + 3,topLeft.y,itemSize.x,itemSize.y*2 + gapSize.y,"NyanUI/heroes_vertical/"..v.name)
+
+                    --HP
+                    local hpPerc = v.health/v.maxHealth
+                    local hpColor = ColorTransfusionHealth(hpPerc)
+                    advancedMonitor[v.handle].hp = drawManager:CreateText(topLeft.x + 30 ,topLeft.y-5,hpColor,tostring(v.health).."/"..tostring(v.maxHealth))
+                    advancedMonitor[v.handle].hpBG = drawManager:CreateRect(topLeft.x + 85,topLeft.y-3,100,8,0x80808080)
+                    advancedMonitor[v.handle].hpBar = drawManager:CreateRect(topLeft.x + 85,topLeft.y-3,100*hpPerc,8,hpColor)
+                    advancedMonitor[v.handle].hpOut = drawManager:CreateRect(topLeft.x + 85,topLeft.y-3,100,8,hpColor,true)
+                    advancedMonitor[v.handle].hpReg = drawManager:CreateText(topLeft.x + 85 ,topLeft.y-5,12,0xFFFFFF80,v.health == v.maxHealth and "" or v.healthRegen > 0 and "+"..tostring(math.floor(v.healthRegen)) or tostring(math.floor(v.healthRegen)))
+
+                    --Mana
+                    advancedMonitor[v.handle].mana = drawManager:CreateText(topLeft.x + 30 ,topLeft.y+5,0x2570D6FF,tostring(math.floor(v.mana)).."/"..tostring(math.floor(v.maxMana)))
+                    advancedMonitor[v.handle].manaBG = drawManager:CreateRect(topLeft.x + 85,topLeft.y+7,100,8,0x80808080)
+                    advancedMonitor[v.handle].manaBar = drawManager:CreateRect(topLeft.x + 85,topLeft.y+7,100*v.mana/v.maxMana,8,0x2570D6FF)
+                    advancedMonitor[v.handle].manaOut = drawManager:CreateRect(topLeft.x + 85,topLeft.y+7,100,8,0x2570D6FF,true)
+                    advancedMonitor[v.handle].manaReg = drawManager:CreateText(topLeft.x + 85 ,topLeft.y+5,12,0xFFFFFF80,v.mana == v.maxMana and "" or v.manaRegen > 0 and "+"..tostring(math.floor(v.manaRegen)) or tostring(math.floor(v.manaRegen)))
+
+                    --Level
+                    advancedMonitor[v.handle].lvl = drawManager:CreateText(topLeft.x + 5,topLeft.y + itemSize.y*2 + gapSize.y + 1,11,0xFFFFFFFF,"L:   "..v:GetProperty("CDOTA_BaseNPC","m_iCurrentLevel"))
+
+                    --Attack
+                    local attackColor = v.damageBonus > 0 and 0x00FF00FF or v.damageBonus < 0 and 0xFF0000FF or 0xFFFFFFFF
+                    advancedMonitor[v.handle].attackIcon = drawManager:CreateRectM(topLeft.x,2 + topLeft.y + itemSize.y*2 + gapSize.y + 10,36,11,"AIOGUI/DamageSword")
+                    advancedMonitor[v.handle].attack = drawManager:CreateText(topLeft.x + 12,2 +topLeft.y + itemSize.y*2 + gapSize.y+10,12,attackColor,tostring(math.floor(((v.damageMin+v.damageMax)/2)+v.damageBonus)))
+
+                    --MoveSpeed
+                    advancedMonitor[v.handle].moveIcon = drawManager:CreateRectM(topLeft.x + 38,topLeft.y + itemSize.y*2 + gapSize.y + 2,18,18,"AIOGUI/MSBoots")
+                    advancedMonitor[v.handle].moveFade = drawManager:CreateRect(topLeft.x + 38,topLeft.y + itemSize.y*2 + gapSize.y + 2,18,18,0x00000080)
+                    advancedMonitor[v.handle].move = drawManager:CreateText(topLeft.x + 38 ,topLeft.y + itemSize.y*2 + gapSize.y+12,0xFFFFFFFF,tostring(math.floor(v.moveSpeed)))
+
+                    --Armor
+                    advancedMonitor[v.handle].armorIcon = drawManager:CreateRectM(topLeft.x + 59,topLeft.y + itemSize.y*2 + gapSize.y + 2,15,20,"AIOGUI/ArmorShield")
+                    advancedMonitor[v.handle].armorFade = drawManager:CreateRect(topLeft.x + 59,topLeft.y + itemSize.y*2 + gapSize.y + 2,15,20,0x00000080)
+                    local armorColor = v.bonusArmor  > 0 and 0x00FF00FF or v.bonusArmor  < 0 and 0xFF0000FF or 0xFFFFFFFF
+                    local e_gap = tostring(v.totalArmor):len() == 1 and 4 or 0
+                    advancedMonitor[v.handle].armor = drawManager:CreateText(topLeft.x + 60 +e_gap,topLeft.y + itemSize.y*2 + gapSize.y+12,armorColor,tostring(v.totalArmor))
+
+                    --Magic Resist
+                    advancedMonitor[v.handle].magResIcon = drawManager:CreateRectM(topLeft.x + 79,topLeft.y + itemSize.y*2 + gapSize.y + 2,15,20,"AIOGUI/MagicShield")
+                    advancedMonitor[v.handle].magResFade = drawManager:CreateRect(topLeft.x + 79,topLeft.y + itemSize.y*2 + gapSize.y + 2,15,20,0x00000080)
+                    local magResistColor = v.magicDmgResist > .25 and v.name ~= "Meepo" and 0x00FF00FF or math.floor(v.magicDmgResist*10000) > 3499 and v.name == "Meepo" and 0x00FF00FF or v.magicDmgResist < .25 and v.name ~= "Meepo" and 0xFF0000FF or math.floor(v.magicDmgResist*10000) < 3499 and v.name == "Meepo" and 0xFF0000FF or 0xFFFFFFFF
+                    advancedMonitor[v.handle].magRes = drawManager:CreateText(topLeft.x + 78 ,topLeft.y + itemSize.y*2 + gapSize.y+12,magResistColor,"."..tostring(math.floor(v.magicDmgResist*100)))
+
+                    --Increased Attack Speed
+                    advancedMonitor[v.handle].iasIcon = drawManager:CreateRectM(topLeft.x + 98,topLeft.y + itemSize.y*2 + gapSize.y + 2,18,18,"NyanUI/spellicons/abaddon_frostmourne")
+                    advancedMonitor[v.handle].iasFade = drawManager:CreateRect(topLeft.x + 98,topLeft.y + itemSize.y*2 + gapSize.y + 2,18,18,0x00000080)
+                    advancedMonitor[v.handle].ias = drawManager:CreateText(topLeft.x + 98 ,topLeft.y + itemSize.y*2 + gapSize.y+12,0xFFFFFFFF,tostring(math.floor(v.attackSpeed)))
+
+                    --Strength
+                    advancedMonitor[v.handle].strIcon = drawManager:CreateRectM(topLeft.x + 118,topLeft.y + itemSize.y*2 + gapSize.y + 2,18,18,"AIOGUI/StrIcon")
+                    advancedMonitor[v.handle].strFade = drawManager:CreateRect(topLeft.x + 118,topLeft.y + itemSize.y*2 + gapSize.y + 2,18,18,0x00000080)
+                    local strColor = (v.strengthTotal - v.strength)  > 0 and 0x00FF00FF or (v.strengthTotal - v.strength) < 0 and 0xFF0000FF or 0xFFFFFFFF
+                    local e_gap = tostring(v.strengthTotal):len() == 2 and 4 or 0
+                    advancedMonitor[v.handle].str = drawManager:CreateText(topLeft.x + 118 +e_gap,topLeft.y + itemSize.y*2 + gapSize.y+12,strColor,tostring(v.strengthTotal))
+
+                    --Agility
+                    advancedMonitor[v.handle].agiIcon = drawManager:CreateRectM(topLeft.x + 138,topLeft.y + itemSize.y*2 + gapSize.y + 2,18,18,"AIOGUI/AgiIcon")
+                    advancedMonitor[v.handle].agiFade = drawManager:CreateRect(topLeft.x + 138,topLeft.y + itemSize.y*2 + gapSize.y + 2,18,18,0x00000080)
+                    local agiColor = (v.agilityTotal - v.agility)  > 0 and 0x00FF00FF or (v.agilityTotal - v.agility) < 0 and 0xFF0000FF or 0xFFFFFFFF
+                    local e_gap = tostring(v.agilityTotal):len() == 2 and 4 or 0
+                    advancedMonitor[v.handle].agi = drawManager:CreateText(topLeft.x + 138 +e_gap,topLeft.y + itemSize.y*2 + gapSize.y+12,agiColor,tostring(v.agilityTotal))
+
+                    --Intelligence
+                    advancedMonitor[v.handle].intIcon = drawManager:CreateRectM(topLeft.x + 158,topLeft.y + itemSize.y*2 + gapSize.y + 2,18,18,"AIOGUI/IntIcon")
+                    advancedMonitor[v.handle].intFade = drawManager:CreateRect(topLeft.x + 158,topLeft.y + itemSize.y*2 + gapSize.y + 2,18,18,0x00000080)
+                    local intColor = (v.intellectTotal - v.intellect)  > 0 and 0x00FF00FF or (v.intellectTotal - v.intellect) < 0 and 0xFF0000FF or 0xFFFFFFFF
+                    local e_gap = tostring(v.intellectTotal):len() == 2 and 4 or 0
+                    advancedMonitor[v.handle].int = drawManager:CreateText(topLeft.x + 158 +e_gap,topLeft.y + itemSize.y*2 + gapSize.y+12,intColor,tostring(v.intellectTotal))
+
+                    --Visiblity
+                    if missingMonitor.side.heroes[v.handle].missTime.color == 0xFFFFFFFF then
+                        advancedMonitor[v.handle].lastSeen = drawManager:CreateText(topLeft.x + 196 +e_gap,topLeft.y + itemSize.y*2 + gapSize.y+12,0xFFFFFFFF,"Last Seen:"..missingMonitor.side.heroes[v.handle].missTime.text:gsub("Missing:",""))                   
+                    else
+                        advancedMonitor[v.handle].lastSeen = drawManager:CreateText(topLeft.x + 196 +e_gap,topLeft.y + itemSize.y*2 + gapSize.y+12,0xFFFFFFFF,"Last Seen: Now")
+                    end
+                    advancedMonitor[v.handle].eta = drawManager:CreateText(topLeft.x + 196 +e_gap,topLeft.y + itemSize.y*2 + gapSize.y+24,missingMonitor.side.heroes[v.handle].etaTime.color,"ETA: ")
+                else
+                    if advancedMonitor[v.handle].lvl.text ~= "L:   "..v:GetProperty("CDOTA_BaseNPC","m_iCurrentLevel") then
+                        advancedMonitor[v.handle].lvl:SetText("L:   "..v:GetProperty("CDOTA_BaseNPC","m_iCurrentLevel"))
+                    end
+                    local hpPerc = v.health/v.maxHealth
+                    local hpColor = ColorTransfusionHealth(hpPerc)
+                    if advancedMonitor[v.handle].hp.color ~= hpColor then
+                        advancedMonitor[v.handle].hp.color = hpColor
+                        advancedMonitor[v.handle].hpBar.color = hpColor
+                        advancedMonitor[v.handle].hpOut.color = hpColor
+                    end
+                    if advancedMonitor[v.handle].hp.text ~= tostring(v.health).."/"..tostring(v.maxHealth) then
+                        advancedMonitor[v.handle].hp:SetText(tostring(v.health).."/"..tostring(v.maxHealth))
+                        advancedMonitor[v.handle].hpBar:SetPosition(advancedMonitor[v.handle].hpBar.x,advancedMonitor[v.handle].hpBar.y,math.floor(100*v.health/v.maxHealth),advancedMonitor[v.handle].hpBar.h)
+                    end
+                    if advancedMonitor[v.handle].hpReg.text ~= v.health == v.maxHealth and "" or v.healthRegen > 0 and "+"..tostring(math.floor(v.healthRegen)) or tostring(math.floor(v.healthRegen)) then
+                        advancedMonitor[v.handle].hpReg:SetText(v.health == v.maxHealth and "" or v.healthRegen > 0 and "+"..tostring(math.floor(v.healthRegen)) or tostring(math.floor(v.healthRegen)))
+                    end
+                    if advancedMonitor[v.handle].mana.text ~= tostring(math.floor(v.mana)).."/"..tostring(math.floor(v.maxMana)) then
+                        advancedMonitor[v.handle].mana:SetText(tostring(math.floor(v.mana)).."/"..tostring(math.floor(v.maxMana)))
+                        advancedMonitor[v.handle].manaBar:SetPosition(advancedMonitor[v.handle].manaBar.x,advancedMonitor[v.handle].manaBar.y,math.floor(100*v.mana/v.maxMana),advancedMonitor[v.handle].manaBar.h)
+                    end
+                    if advancedMonitor[v.handle].manaReg.text ~= v.mana == v.maxMana and "" or v.manaRegen > 0 and "+"..tostring(math.floor(v.manaRegen)) or tostring(math.floor(v.manaRegen)) then
+                        advancedMonitor[v.handle].manaReg:SetText(v.mana == v.maxMana and "" or v.manaRegen > 0 and "+"..tostring(math.floor(v.manaRegen)) or tostring(math.floor(v.manaRegen)))
+                    end
+
+                    local attackColor = v.damageBonus > 0 and 0x00FF00FF or v.damageBonus < 0 and 0xFF0000FF or 0xFFFFFFFF
+                    if advancedMonitor[v.handle].attack.color ~= attackColor then
+                        advancedMonitor[v.handle].attack.color = attackColor
+                    end
+                    if advancedMonitor[v.handle].attack.text ~= tostring(math.floor(((v.damageMin+v.damageMax)/2)+v.damageBonus)) then
+                        advancedMonitor[v.handle].attack:SetText(tostring(math.floor(((v.damageMin+v.damageMax)/2)+v.damageBonus)))
+                    end
+                    if advancedMonitor[v.handle].move.text ~= tostring(math.floor(v.moveSpeed)) then
+                        advancedMonitor[v.handle].move:SetText(tostring(math.floor(v.moveSpeed)))
+                    end
+                    local armorColor = v.bonusArmor  > 0 and 0x00FF00FF or v.bonusArmor  < 0 and 0xFF0000FF or 0xFFFFFFFF
+                    if advancedMonitor[v.handle].armor.color ~= armorColor then
+                        advancedMonitor[v.handle].armor.color = armorColor
+                    end
+                    if advancedMonitor[v.handle].armor.text ~= tostring(v.totalArmor) then
+                        advancedMonitor[v.handle].armor:SetPosition(advancedMonitor[v.handle].armor.x - 4*(tostring(v.totalArmor):len() - advancedMonitor[v.handle].armor.text:len()),advancedMonitor[v.handle].armor.y)
+                        advancedMonitor[v.handle].armor:SetText(tostring(v.totalArmor))
+                    end
+                    local magResistColor = v.magicDmgResist > .25 and v.name ~= "Meepo" and 0x00FF00FF or math.floor(v.magicDmgResist*10000) > 3499 and v.name == "Meepo" and 0x00FF00FF or v.magicDmgResist < .25 and v.name ~= "Meepo" and 0xFF0000FF or math.floor(v.magicDmgResist*10000) < 3499 and v.name == "Meepo" and 0xFF0000FF or 0xFFFFFFFF
+                    if advancedMonitor[v.handle].magRes.color ~= magResistColor then
+                        advancedMonitor[v.handle].magRes.color = magResistColor
+                    end
+                    if advancedMonitor[v.handle].magRes.text ~= "."..tostring(math.floor(v.magicDmgResist*100)) then
+                        advancedMonitor[v.handle].magRes:SetText("."..tostring(math.floor(v.magicDmgResist*100)))
+                    end
+                    if advancedMonitor[v.handle].ias.text ~= tostring(math.floor(v.attackSpeed)) then
+                        advancedMonitor[v.handle].ias:SetText(tostring(math.floor(v.attackSpeed)))
+                    end
+                    local strColor = (v.strengthTotal - v.strength)  > 0 and 0x00FF00FF or (v.strengthTotal - v.strength) < 0 and 0xFF0000FF or 0xFFFFFFFF
+                    if advancedMonitor[v.handle].str.color ~= strColor then
+                        advancedMonitor[v.handle].str.color = strColor
+                    end
+                    if advancedMonitor[v.handle].str.text ~= tostring(math.floor(v.strengthTotal)) then
+                        advancedMonitor[v.handle].str:SetText(tostring(math.floor(v.strengthTotal)))
+                    end
+                    local agiColor = (v.agilityTotal - v.agility)  > 0 and 0x00FF00FF or (v.agilityTotal - v.agility) < 0 and 0xFF0000FF or 0xFFFFFFFF
+                    if advancedMonitor[v.handle].agi.color ~= agiColor then
+                        advancedMonitor[v.handle].agi.color = agiColor
+                    end
+                    if advancedMonitor[v.handle].agi.text ~= tostring(math.floor(v.agilityTotal)) then
+                        advancedMonitor[v.handle].agi:SetText(tostring(math.floor(v.agilityTotal)))
+                    end
+                    local intColor = (v.intellectTotal - v.intellect)  > 0 and 0x00FF00FF or (v.intellectTotal - v.intellect) < 0 and 0xFF0000FF or 0xFFFFFFFF
+                    if advancedMonitor[v.handle].int.color ~= intColor then
+                        advancedMonitor[v.handle].int.color = intColor
+                    end
+                    if advancedMonitor[v.handle].int.text ~= tostring(math.floor(v.intellectTotal)) then
+                        advancedMonitor[v.handle].int:SetText(tostring(math.floor(v.intellectTotal)))
+                    end
+
+                    if advancedMonitor[v.handle].eta.color ~= missingMonitor.side.heroes[v.handle].etaTime.color then
+                        advancedMonitor[v.handle].eta.color = missingMonitor.side.heroes[v.handle].etaTime.color
+                    end
+                    if missingMonitor.side.heroes[v.handle].etaTime.text ~= "   Careful" then
+                        if advancedMonitor[v.handle].eta.text ~= missingMonitor.side.heroes[v.handle].etaTime.text then
+                            advancedMonitor[v.handle].eta:SetText(missingMonitor.side.heroes[v.handle].etaTime.text)
+                        end
+                    else
+                        if advancedMonitor[v.handle].eta.text ~= "ETA: Now" then
+                            advancedMonitor[v.handle].eta:SetText("ETA: Now")
+                        end
+                    end
+                    if missingMonitor.side.heroes[v.handle].missTime.color == 0xFFFFFFFF then
+                        if advancedMonitor[v.handle].lastSeen.text ~= "Last Seen:"..missingMonitor.side.heroes[v.handle].missTime.text:gsub("Missing:","") then
+                            advancedMonitor[v.handle].lastSeen:SetText("Last Seen:"..missingMonitor.side.heroes[v.handle].missTime.text:gsub("Missing:",""))                   
+                        end
+                    else
+                        if advancedMonitor[v.handle].lastSeen.text ~= "Last Seen: Now" then
+                            advancedMonitor[v.handle].lastSeen:SetText("Last Seen: Now")
+                        end
+                    end
+                end
+
+                local spells = {}
+
+                local spellPos = topLeft + Vector2D(200,0)
+
+                for i=1,15 do
+                    local ability = v:GetAbility(i)
+                    if ability ~= nil then
+                        if not ability:IsHidden() and ability.name ~= "attribute_bonus" then
+                            spells[#spells+1] = ability
+                        end
+                    end
+                end
+
+                local len = math.floor((wi - ga*#spells + ga)/#spells)
+                local font = len == 21 and 10 or len == 26 and 12 or 14
+                local c_ga = font == 10 and (len/2 - 6) or (len/2 - 9)
+
+                if not advancedMonitor[v.handle].spells then
+                    advancedMonitor[v.handle].spells = {}
+                end
+
+                for index,spell in ipairs(spells) do
+                    local _font = math.floor(tostring(math.ceil(spell.cd)):len() ~= 1 and font*4/tostring(math.ceil(spell.cd)):len() or font*2)
+                    local gap = math.floor(wi*(index-1)/#spells)
+                    if not advancedMonitor[v.handle].spells[index] or #spells ~= advancedMonitor[v.handle].spells.spellCount then
+                        advancedMonitor[v.handle].spells[index] = {}
+                        advancedMonitor[v.handle].spells.spellCount = #spells
+                    end
+                    if spell.name ~= advancedMonitor[v.handle].spells[index].name or spell.toggled ~= advancedMonitor[v.handle].spells[index].toggled then
+                        if spell.name == "troll_warlord_berserkers_rage" and spell.toggled then
+                            advancedMonitor[v.handle].spells[index].icon = drawManager:CreateRectM(spellPos.x + gap,spellPos.y,len,len,"NyanUI/spellicons/"..spell.name.."_active")
+                        else
+                            advancedMonitor[v.handle].spells[index].icon = drawManager:CreateRectM(spellPos.x + gap,spellPos.y,len,len,"NyanUI/spellicons/"..spell.name)
+                        end
+                        advancedMonitor[v.handle].spells[index].name = spell.name
+                        advancedMonitor[v.handle].spells[index].toggle = spell.toggled
+                        advancedMonitor[v.handle].spells[index].level = drawManager:CreateText(spellPos.x + gap + c_ga,spellPos.y+len,font,0xFFFFFFFF,"L. "..spell.level)
+                        advancedMonitor[v.handle].spells[index].border = drawManager:CreateRect(spellPos.x + gap-1,spellPos.y-1,len+1,len+1,0x00000001,true)
+                        advancedMonitor[v.handle].spells[index].effect = drawManager:CreateRect(spellPos.x + gap,spellPos.y,len,len,0x00000001)
+                        advancedMonitor[v.handle].spells[index].cd = drawManager:CreateText(spellPos.x + wi*(index-1)/#spells+c_ga/2,spellPos.y+c_ga/2,_font,0xFFFFFFFF,"")
+                        dirty = true
+                    end
+                    if spell.state == STATE_COOLDOWN then
+                        if advancedMonitor[v.handle].spells[index].border.color ~= 0x000000FF then
+                            advancedMonitor[v.handle].spells[index].border.color = 0x000000FF
+                        end
+                        if advancedMonitor[v.handle].spells[index].effect.color ~= 0x000000D0 then
+                            advancedMonitor[v.handle].spells[index].effect.color = 0x000000D0
+                        end
+                        if advancedMonitor[v.handle].spells[index].cd.text ~= ""..math.ceil(spell.cd) then
+                            advancedMonitor[v.handle].spells[index].cd:SetText(""..math.ceil(spell.cd))
+                        end
+                    elseif spell.state == STATE_NOMANA then
+                        if advancedMonitor[v.handle].spells[index].border.color ~= 0x0000A0FF then
+                            advancedMonitor[v.handle].spells[index].border.color = 0x0000A0FF
+                        end
+                        if advancedMonitor[v.handle].spells[index].effect.color ~= 0x3030A0D0 then
+                            advancedMonitor[v.handle].spells[index].effect.color = 0x3030A0D0
+                        end
+                        if advancedMonitor[v.handle].spells[index].cd.text ~= "" then
+                            advancedMonitor[v.handle].spells[index].cd:SetText("")
+                        end
+                    elseif (spell.state == STATE_NOTLEARNED or spell.state == 84) and not spell.name:find("empty") then
+                        if advancedMonitor[v.handle].spells[index].border.color ~= 0x404040FF then
+                            advancedMonitor[v.handle].spells[index].border.color = 0x404040FF
+                        end
+                        if advancedMonitor[v.handle].spells[index].effect.color ~= 0x404040D0 then
+                            advancedMonitor[v.handle].spells[index].effect.color = 0x404040D0
+                        end
+                        if advancedMonitor[v.handle].spells[index].cd.text ~= "" then
+                            advancedMonitor[v.handle].spells[index].cd:SetText("")
+                        end
+                    elseif spell.state == STATE_READY then
+                        if advancedMonitor[v.handle].spells[index].border.color ~= 0x808080FF then
+                            advancedMonitor[v.handle].spells[index].border.color = 0x808080FF
+                        end
+                        if advancedMonitor[v.handle].spells[index].effect.color ~= 0x00000001 then
+                            advancedMonitor[v.handle].spells[index].effect.color = 0x00000001
+                        end
+                        if advancedMonitor[v.handle].spells[index].cd.text ~= "" then
+                            advancedMonitor[v.handle].spells[index].cd:SetText("")
+                        end
+                    elseif spell.state == 17 then --Passive Spells
+                        if advancedMonitor[v.handle].spells[index].border.color ~= 0x000000FF then
+                            advancedMonitor[v.handle].spells[index].border.color = 0x000000FF
+                        end
+                        if advancedMonitor[v.handle].spells[index].effect.color ~= 0x00000001 then
+                            advancedMonitor[v.handle].spells[index].effect.color = 0x00000001
+                        end
+                        if advancedMonitor[v.handle].spells[index].cd.text ~= "" then
+                            advancedMonitor[v.handle].spells[index].cd:SetText("")
+                        end
+
+                    end
+                end
+
+                --ItemShowing
+
+                if not advancedMonitor[v.handle].items then
+                    advancedMonitor[v.handle].items = {}
+                end
+
+                local stashState = DoesHeroHasStashItems(v)
+
+                if not advancedMonitor[v.handle].stashText then
+                    advancedMonitor[v.handle].stashBg = drawManager:CreateRect(topLeft.x + 350 ,topLeft.y-4,60,75,0x000000D0)
+                    advancedMonitor[v.handle].stashText = drawManager:CreateText(topLeft.x + 360 ,topLeft.y-4,0xFFFFFFFF,"STASH")
+                end
+
+                if stashState then
+                    if advancedMonitor[v.handle].stashBg.color ~= 0x000000D0 then
+                        advancedMonitor[v.handle].stashBg.color = 0x000000D0
+                    end
+                    if advancedMonitor[v.handle].stashText.color ~= 0xFFFFFFFF then
+                        advancedMonitor[v.handle].stashText.color = 0xFFFFFFFF
+                    end
+                else
+                    if advancedMonitor[v.handle].stashBg.color ~= 0x00000001 then
+                        advancedMonitor[v.handle].stashBg.color = 0x00000001
+                    end
+                    if advancedMonitor[v.handle].stashText.color ~= 0x00000001 then
+                        advancedMonitor[v.handle].stashText.color = 0x00000001
+                    end
+                end
+
+
+                for itemSlot = 1, 12 do
+                    if not advancedMonitor[v.handle].items[itemSlot] then
+                        advancedMonitor[v.handle].items[itemSlot] = {}
+                    end
+
+                    local itemXY = topLeft + Vector2D(extraGap.x,0)
+                    local dx = itemSlot < 7 and itemSlot or itemSlot%2 + 14
+                    local dy = itemSlot < 7 and 1 or math.floor((itemSlot - 7)/2) + 0.6
+                    local itemXY = itemXY + Vector2D(itemSize.x*itemPercent + gapSize.x,0) * dx + Vector2D(0,itemSize.y + gapSize.y) * dy
+                    local item = v:GetItem(itemSlot)
+
+                    local hide = not stashState and itemSlot > 6
+
+                    if item and item.name and not hide then
+                        if item.name == "item_power_treads" then
+                            if item.bootsState == PT_AGI then
+                                if advancedMonitor[v.handle].items[itemSlot].name ~= "power_treads_agi" then
+                                    advancedMonitor[v.handle].items[itemSlot].name = "power_treads_agi"
+                                    advancedMonitor[v.handle].items[itemSlot].icon = drawManager:CreateRectM(itemXY.x,itemXY.y,itemSize.x,itemSize.y,"NyanUI/items/power_treads_agi")
+                                    dirty = true
+                                end
+                            elseif item.bootsState == PT_INT then
+                                if advancedMonitor[v.handle].items[itemSlot].name ~= "power_treads_int" then
+                                    advancedMonitor[v.handle].items[itemSlot].name = "power_treads_int"
+                                    advancedMonitor[v.handle].items[itemSlot].icon = drawManager:CreateRectM(itemXY.x,itemXY.y,itemSize.x,itemSize.y,"NyanUI/items/power_treads_int")
+                                    dirty = true
+                                end
+                            elseif item.bootsState == PT_STR then
+                                if advancedMonitor[v.handle].items[itemSlot].name ~= "power_treads_str" then  
+                                    advancedMonitor[v.handle].items[itemSlot].name = "power_treads_str"
+                                    advancedMonitor[v.handle].items[itemSlot].icon = drawManager:CreateRectM(itemXY.x,itemXY.y,itemSize.x,itemSize.y,"NyanUI/items/power_treads_str")
+                                    dirty = true
+                                end
+                            elseif advancedMonitor[v.handle].items[itemSlot].name ~= "power_treads" then  
+                                advancedMonitor[v.handle].items[itemSlot].name = "power_treads"
+                                advancedMonitor[v.handle].items[itemSlot].icon = drawManager:CreateRectM(itemXY.x,itemXY.y,itemSize.x,itemSize.y,"NyanUI/items/power_treads")
+                                dirty = true
+                            end
+                        elseif item.name == "item_armlet" then
+                            if item.toggled then
+                                if advancedMonitor[v.handle].items[itemSlot].name ~= "armlet_active" then 
+                                    advancedMonitor[v.handle].items[itemSlot].name = "armlet_active"
+                                    advancedMonitor[v.handle].items[itemSlot].icon = drawManager:CreateRectM(itemXY.x,itemXY.y,itemSize.x,itemSize.y,"NyanUI/items/armlet_active")
+                                    dirty = true
+                                end
+                            elseif advancedMonitor[v.handle].items[itemSlot].name ~= "armlet" then    
+                                advancedMonitor[v.handle].items[itemSlot].name = "armlet"
+                                advancedMonitor[v.handle].items[itemSlot].icon = drawManager:CreateRectM(itemXY.x,itemXY.y,itemSize.x,itemSize.y,"NyanUI/items/armlet")
+                                dirty = true
+                            end
+                        elseif item.name == "item_radiance" then
+                            if item.toggled then
+                                if advancedMonitor[v.handle].items[itemSlot].name ~= "radiance_inactive" then 
+                                    advancedMonitor[v.handle].items[itemSlot].name = "radiance_inactive"
+                                    advancedMonitor[v.handle].items[itemSlot].icon = drawManager:CreateRectM(itemXY.x,itemXY.y,itemSize.x,itemSize.y,"NyanUI/items/radiance_inactive")
+                                    dirty = true
+                                end
+                            elseif advancedMonitor[v.handle].items[itemSlot].name ~= "radiance" then  
+                                advancedMonitor[v.handle].items[itemSlot].name = "radiance"
+                                advancedMonitor[v.handle].items[itemSlot].icon = drawManager:CreateRectM(itemXY.x,itemXY.y,itemSize.x,itemSize.y,"NyanUI/items/radiance")
+                                dirty = true
+                            end
+                        elseif item.name == "item_tranquil_boots" then
+                            if item.charges == 3 then
+                                if advancedMonitor[v.handle].items[itemSlot].name ~= "tranquil_boots_active" then 
+                                    advancedMonitor[v.handle].items[itemSlot].name = "tranquil_boots_active"
+                                    advancedMonitor[v.handle].items[itemSlot].icon = drawManager:CreateRectM(itemXY.x,itemXY.y,itemSize.x,itemSize.y,"NyanUI/items/tranquil_boots_active")
+                                    dirty = true
+                                end
+                            elseif advancedMonitor[v.handle].items[itemSlot].name ~= "tranquil_boots" then    
+                                advancedMonitor[v.handle].items[itemSlot].name = "tranquil_boots"
+                                advancedMonitor[v.handle].items[itemSlot].icon = drawManager:CreateRectM(itemXY.x,itemXY.y,itemSize.x,itemSize.y,"NyanUI/items/tranquil_boots")
+                                dirty = true
+                            end
+                        elseif advancedMonitor[v.handle].items[itemSlot].name ~= item.name then
+                            advancedMonitor[v.handle].items[itemSlot].name = item.name
+                            advancedMonitor[v.handle].items[itemSlot].icon = drawManager:CreateRectM(itemXY.x,itemXY.y,itemSize.x,itemSize.y,"NyanUI/items/"..item.name:gsub("item_",""))
+                            dirty = true
+                        end
+                        if item.charges > 0 and item.name ~= "item_tranquil_boots" then
+                            if advancedMonitor[v.handle].items[itemSlot].charges ~= item.charges then
+                                if not advancedMonitor[v.handle].items[itemSlot].charges then
+                                    advancedMonitor[v.handle].items[itemSlot].charges = item.charges
+                                    advancedMonitor[v.handle].items[itemSlot].chargeBG = drawManager:CreateRect(itemXY.x + itemSize.x*itemPercent - fontSize,itemXY.y + itemSize.y - fontSize,fontSize,fontSize,0x000000D0)
+                                    advancedMonitor[v.handle].items[itemSlot].chargeText = drawManager:CreateText(itemXY.x + itemSize.x*itemPercent - fontSize*7/10,itemXY.y + itemSize.y - fontSize,fontSize,0xFFFFFFFF,tostring(item.charges))
+                                    dirty = true
+                                else
+                                    advancedMonitor[v.handle].items[itemSlot].charges = item.charges
+                                    advancedMonitor[v.handle].items[itemSlot].chargeText:SetText(tostring(item.charges))
+                                end
+                            end
+                        elseif advancedMonitor[v.handle].items[itemSlot].chargeBG then
+                            advancedMonitor[v.handle].items[itemSlot].charges = nil
+                            advancedMonitor[v.handle].items[itemSlot].chargeBG = nil
+                            advancedMonitor[v.handle].items[itemSlot].chargeText = nil
+                            dirty = true
+                        end
+                        if not advancedMonitor[v.handle].items[itemSlot].effect then
+                            if item.state == STATE_NOMANA then
+                                advancedMonitor[v.handle].items[itemSlot].effect = drawManager:CreateRect(itemXY.x,itemXY.y,itemSize.x*itemPercent,itemSize.y,0x3030A0D0)
+                            elseif item.state == STATE_ITEMCOOLDOWN then
+                                advancedMonitor[v.handle].items[itemSlot].effect = drawManager:CreateRect(itemXY.x,itemXY.y,itemSize.x*itemPercent,itemSize.y,0x000000D0)
+                            else
+                                advancedMonitor[v.handle].items[itemSlot].effect = drawManager:CreateRect(itemXY.x,itemXY.y,itemSize.x*itemPercent,itemSize.y,0x00000001)
+                            end
+                        else
+                            if item.state == STATE_NOMANA then
+                                if advancedMonitor[v.handle].items[itemSlot].effect.color ~= 0x3030A0D0 then
+                                    advancedMonitor[v.handle].items[itemSlot].effect.color = 0x3030A0D0
+                                end
+                            elseif item.state == STATE_ITEMCOOLDOWN then
+                                if advancedMonitor[v.handle].items[itemSlot].effect.color ~= 0x000000D0 then
+                                    advancedMonitor[v.handle].items[itemSlot].effect.color = 0x000000D0
+                                end
+                            else
+                                if advancedMonitor[v.handle].items[itemSlot].effect.color ~= 0x00000001 then
+                                    advancedMonitor[v.handle].items[itemSlot].effect.color = 0x00000001
+                                end
+                            end
+                        end
+                        if not advancedMonitor[v.handle].items[itemSlot].cd then
+                            local _cd = math.ceil(item.cd)
+                            local xGap = _cd > 99 and 3 or _cd > 9 and 5 or 9
+                            _cd = _cd > 0 and _cd or ""
+                            advancedMonitor[v.handle].items[itemSlot].cd = _cd
+                            advancedMonitor[v.handle].items[itemSlot].cdGap = xGap
+                            advancedMonitor[v.handle].items[itemSlot].cdText = drawManager:CreateText(itemXY.x + xGap,itemXY.y + 1,14,0xFFFFFFD0,tostring(math.ceil(item.cd)))
+                        elseif math.ceil(item.cd) ~= advancedMonitor[v.handle].items[itemSlot].cd then
+                            local _cd = math.ceil(item.cd)
+                            local xGap = _cd > 99 and 3 or _cd > 9 and 5 or 9
+                            _cd = _cd > 0 and _cd or ""
+                            advancedMonitor[v.handle].items[itemSlot].cdText:SetText(tostring(_cd))
+                            advancedMonitor[v.handle].items[itemSlot].cdText.x = advancedMonitor[v.handle].items[itemSlot].cdText.x + xGap - advancedMonitor[v.handle].items[itemSlot].cdGap
+                            advancedMonitor[v.handle].items[itemSlot].cd = _cd
+                            advancedMonitor[v.handle].items[itemSlot].cdGap = xGap
+                        end
+                    elseif not hide and advancedMonitor[v.handle].items[itemSlot].name ~= "empty" then
+                        advancedMonitor[v.handle].items[itemSlot].charges = nil
+                        advancedMonitor[v.handle].items[itemSlot].chargeBG = nil
+                        advancedMonitor[v.handle].items[itemSlot].chargeText = nil
+                        advancedMonitor[v.handle].items[itemSlot].name = "empty"
+                        advancedMonitor[v.handle].items[itemSlot].icon = drawManager:CreateRectM(itemXY.x,itemXY.y,itemSize.x,itemSize.y,"NyanUI/items/emptyitembg")
+                        dirty = true
+                    end
+
+                    if hide then
+                        advancedMonitor[v.handle].items[itemSlot] = nil
+                        dirty = true
+                    end
+                end
+
+                i = i + 1
+            end
+        end
+
+        if advancedMonitor.count and i ~= advancedMonitor.count then
+            advancedMonitor = {}
+            dirty = true
+        elseif not advancedMonitor.count then
+            advancedMonitor.count = i
+        end
+
+        if dirty then
+            collectgarbage("collect")
+        end
+
+    end
+
+    SetVisibilityOfATable(advancedMonitor,ScriptConfig.advMon)
+    adVisible = ScriptConfig.advMon
+end
 
 function MissingTick()
     --Missing heroes monitoring
     local heroes = entityList:FindEntities({type=TYPE_HERO,team=TEAM_ENEMY})
     for i,v in ipairs(heroes) do
-        if v.replicatingModel == -1 and not v.illusion then
+        if not v.illusion then
             if missingMonitor.side.heroes[v.handle] == nil then
                 heroCount = heroCount + 1
                 missingMonitor.side.heroes[v.handle] = {}
@@ -237,7 +835,7 @@ function MissingTick()
                     collectgarbage("collect")
                 end
             end
-            if not v.visible and not v.illusion then
+            if (not v.visible or not me ) and not v.illusion then
                 --Minimap Draw
                 local coord = MapToMinimap(v.x,v.y)
                 if not missingMonitor.side.heroes[v.handle].miniBMP then
@@ -554,7 +1152,7 @@ function SetVisibilityOfATable(ta,b)
     for k,v in pairs(ta) do
         if type(v) == "table" then
             SetVisibilityOfATable(v,b)
-        elseif type(v) ~= "string" then
+        elseif type(v) == "userdata" and v.visible ~= nil then
             v.visible = b
         end
     end
@@ -570,6 +1168,10 @@ function DeInit()
         roshBox = {}
 
         runeBox = {}
+
+        cours = {}
+
+        advancedMonitor = {}
 
         init = false
 
@@ -592,6 +1194,10 @@ end
 function DrawInit()
     if not init then
         ScriptConfig:SetVisible(true)
+
+        advancedMonitor = {}
+
+        cours = {}
 
         roshBox = {}
         roshBox.inside = drawManager:CreateRect(location.rosh.x,location.rosh.y,95,18,0x000000FF)
@@ -676,10 +1282,6 @@ function FireEvent( name )
     end
 end
 
-function Close()
-    deathTick = nil
-end
-
 function GetDistance2D(a,b)
     return math.sqrt(math.pow(a.x-b.x,2)+math.pow(a.y-b.y,2))
 end
@@ -707,5 +1309,3 @@ MinimapMapScaleY = location.minimap.h / MapHeight
 
 script:RegisterEvent(EVENT_FRAME,Tick)
 script:RegisterEvent(EVENT_DOTA,FireEvent)
-script:RegisterEvent(EVENT_CLOSE,Close)
-script:RegisterEvent(EVENT_START,Close)
