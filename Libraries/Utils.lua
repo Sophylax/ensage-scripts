@@ -25,6 +25,9 @@
 	|             Changelog            |
 	====================================
 
+		v1.2a:
+		 - Fixed the error in Plague Aura damage calculations.
+
 		v1.2:
 		 - CanAttack() now checks the attack type of the unit
 		 - IsRanged() now operates on attackType
@@ -1438,13 +1441,13 @@ function LuaEntityNPC:DamageTaken(dmg,dmgType,source)
 		if self:DoesHaveModifier("modifier_undying_flesh_golem_plague_aura") then
 			for k,l in pairs(entityList:FindEntities({type = TYPE_HERO})) do
 				if not l.illusion and l.team ~= self.team then
-					local spell = l:FindSpell(v.sourceSpellName)
+					local spell = l:FindSpell("undying_flesh_golem")
 					if spell then
 						local baseAmp = .05 * spell.level
-						if v:FindItem("item_ultimate_scepter") then
+						if l:FindItem("item_ultimate_scepter") then
 							baseAmp = baseAmp + .05
 						end
-						local distantce = self:GetDistance2D(v)
+						local distantce = self:GetDistance2D(l)
 						if distance <= 200 then
 							amp = baseAmp + 0.15
 						elseif distance > 750 then
@@ -1487,7 +1490,6 @@ function LuaEntityNPC:DamageTaken(dmg,dmgType,source)
 							end
 						end
 					end
-					print(reduce,v.modifierName)
 					tempDmg = tempDmg * (1 - reduce)
 				elseif tempDmg > 0 then
 					if type(reduce) == "table" then
