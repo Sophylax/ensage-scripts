@@ -8,7 +8,7 @@
  0 1 1 0 0 0 0 1    
  0 1 1 1 1 0 0 0    
 
-				Hotkey Configuration Library v1.2
+				Hotkey Configuration Library v1.2a
 
 		Save as: HotkeyConfig.lua into Ensage\Scripts\libs.
 
@@ -83,6 +83,10 @@
 			script:RegisterEvent(EVENT_TICK, Tick)
 
 		Changelog:
+			v1.2a:
+			 - Cleaned some code
+			 - Fixed a bug when a CYCLE type button is tried to cycled back and it is currently at the first index
+
 			v1.2:
 			 - Reworked the GUI obj to have bind itself to events on create
 			 - Scripts now have to create their own ScriptConfig objs with "ScriptConfig = ConfigGUI:New(script.name)"
@@ -326,18 +330,14 @@ function ConfigGUI:New(name)
 		elseif self._cfg[index].type == SGC_TYPE_CYCLE then
 			if tonumber(self._cfg[index].key) == tonumber(code) then
 				if (self._cfg[index].last == KEY_UP or self._cfg[index].last == nil) and (msg == KEY_DOWN or msg == RBUTTON_DOWN) then
-					if msg == RBUTTON_DOWN then
-						self[self._cfg[index].id] = (self[self._cfg[index].id])%#self._cfg[index].table - 1
-					else
-						self[self._cfg[index].id] = (self[self._cfg[index].id])%#self._cfg[index].table + 1
-					end
-				success = true
+					self[self._cfg[index].id] = (self[self._cfg[index].id])%#self._cfg[index].table + 1
+					success = true
 					self:SaveCfg()
 				end
 				self._cfg[index].last = msg
 			elseif (msg == LBUTTON_DOWN or msg == RBUTTON_DOWN) then
 				if msg == RBUTTON_DOWN then
-					self[self._cfg[index].id] = (self[self._cfg[index].id])%#self._cfg[index].table - 1
+					self[self._cfg[index].id] = (self[self._cfg[index].id] - 2)%#self._cfg[index].table + 1
 				else
 					self[self._cfg[index].id] = (self[self._cfg[index].id])%#self._cfg[index].table + 1
 				end
