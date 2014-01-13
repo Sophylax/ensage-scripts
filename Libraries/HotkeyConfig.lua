@@ -8,7 +8,7 @@
  0 1 1 0 0 0 0 1    
  0 1 1 1 1 0 0 0    
 
-				Hotkey Configuration Library v1.1
+				Hotkey Configuration Library v1.2
 
 		Save as: HotkeyConfig.lua into Ensage\Scripts\libs.
 
@@ -84,10 +84,10 @@
 
 		Changelog:
 			v1.2:
-			 - Reworked the GUI onj to have bind itself to events on create
+			 - Reworked the GUI obj to have bind itself to events on create
 			 - Scripts now have to create their own ScriptConfig objs with "ScriptConfig = ConfigGUI:New(script.name)"
 			 - Now the values are correctly aligned to the right side of the box.
-			 
+
 			v1.1a:
 			 - Fixed a rare bug when it tries to hide a config with no keys bound to a parameter
 
