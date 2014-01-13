@@ -25,6 +25,9 @@
 	|             Changelog            |
 	====================================
 
+		v1.2b:
+		 - Fixed a typo
+
 		v1.2a:
 		 - Fixed the error in Plague Aura damage calculations.
 
@@ -883,12 +886,13 @@ end
 
 --Selects LuaEntity, Gives a Move command and Selects back the previous selection.
 function LuaEntityNPC:Move(x,y,z)
-	if x and y and z then
+	assert(x, debug.getinfo(1, "n").name..": Invalid Parameters")
+	if x ~= nil and y ~= nil and z ~= nil then
 		assert(type(x) == "number" and type(y) == "number" and type(z) == "number", debug.getinfo(1, "n").name..": Invalid Coordinates")
 		local prev = SelectUnit(self)
 		Move(x,y,z)
 		SelectBack(prev)
-	elseif x then
+	elseif x ~= nil then
 		assert(GetType(x) == "Vector", debug.getinfo(1, "n").name..": Invalid Vector")
 		local prev = SelectUnit(self)
 		Move(x)
@@ -1447,7 +1451,7 @@ function LuaEntityNPC:DamageTaken(dmg,dmgType,source)
 						if l:FindItem("item_ultimate_scepter") then
 							baseAmp = baseAmp + .05
 						end
-						local distantce = self:GetDistance2D(l)
+						local distance = self:GetDistance2D(l)
 						if distance <= 200 then
 							amp = baseAmp + 0.15
 						elseif distance > 750 then
