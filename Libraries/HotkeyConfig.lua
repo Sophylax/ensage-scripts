@@ -72,6 +72,8 @@
 				if ScriptConfig.TestP2 then print("I turned on TestP3!") end
 			end
 
+			ScriptConfig = ConfigGUI:New(script.name)
+
 			ScriptConfig:SetName("Test Script Config")
 			ScriptConfig:AddParam("TestP1", "Test Param 1", SGC_TYPE_ONKEYDOWN, true, false, 32)
 			ScriptConfig:AddParam("TestP2", "Test Param 2", SGC_TYPE_TOGGLE, true, false, string.byte("A"))
@@ -81,7 +83,15 @@
 			script:RegisterEvent(EVENT_TICK, Tick)
 
 		Changelog:
-			v1.1
+			v1.2:
+			 - Reworked the GUI onj to have bind itself to events on create
+			 - Scripts now have to create their own ScriptConfig objs with "ScriptConfig = ConfigGUI:New(script.name)"
+			 - Now the values are correctly aligned to the right side of the box.
+			 
+			v1.1a:
+			 - Fixed a rare bug when it tries to hide a config with no keys bound to a parameter
+
+			v1.1:
 			 - Fixed a bug when it tries to save config with no keys bound to a parameter
 			 - Added RightClick input for SGC_TYPE_NUMCYCLE and SGC_TYPE_CYCLE parameters which will make them cycle bacwards
 
@@ -90,6 +100,8 @@
 ]]
 
 --== SETTINGS ==--
+
+font = drawManager:CreateFont("11", "Arial", 14, 500)
 
 TOP_MARGIN = 60
 SIDE_MARGIN = 10
@@ -243,7 +255,9 @@ function ConfigGUI:New(name)
 					self._settings.visuals.button[v.id].border.visible = bool
 					self._settings.visuals.button[v.id].name.visible = bool
 					self._settings.visuals.button[v.id].value.visible = bool
-					self._settings.visuals.button[v.id].key.visible = bool
+					if self._settings.visuals.button[v.id].key then
+						self._settings.visuals.button[v.id].key.visible = bool
+					end
 				end
 				if v.show and self._settings.visuals.permaShow[v.id].name then
 					self._settings.visuals.permaShow[v.id].inside.visible = bool
@@ -392,11 +406,11 @@ function ConfigGUI:New(name)
 					self._settings.visuals.button[self._cfg[index].id].value:SetText("OFF")
 				end
 			elseif self._cfg[index].table then
-				x_change = string.len(self._settings.visuals.button[self._cfg[index].id].value.text)*FONT_SIZE/3 - string.len(self._cfg[index].table[tonumber(self[self._cfg[index].id])])*FONT_SIZE/3
+				x_change = drawManager:GetTextSize(self._settings.visuals.button[self._cfg[index].id].value.text,FONT_SIZE)[1] - drawManager:GetTextSize(self._cfg[index].table[tonumber(self[self._cfg[index].id])],FONT_SIZE)[1]
 				self._settings.visuals.button[self._cfg[index].id].value:SetPosition(self._settings.visuals.button[self._cfg[index].id].value.x + x_change,self._settings.visuals.button[self._cfg[index].id].value.y)
 				self._settings.visuals.button[self._cfg[index].id].value:SetText(self._cfg[index].table[tonumber(self[self._cfg[index].id])])
 			else
-				x_change = string.len(self._settings.visuals.button[self._cfg[index].id].value.text)*FONT_SIZE/3 - string.len(tostring(self[self._cfg[index].id]))*FONT_SIZE/3
+				x_change = drawManager:GetTextSize(self._settings.visuals.button[self._cfg[index].id].value.text,FONT_SIZE)[1] - drawManager:GetTextSize(tostring(self[self._cfg[index].id]),FONT_SIZE)[1]
 				self._settings.visuals.button[self._cfg[index].id].value:SetPosition(self._settings.visuals.button[self._cfg[index].id].value.x + x_change,self._settings.visuals.button[self._cfg[index].id].value.y)
 				self._settings.visuals.button[self._cfg[index].id].value:SetText(tostring(self[self._cfg[index].id]))
 			end
@@ -423,11 +437,11 @@ function ConfigGUI:New(name)
 					self._settings.visuals.permaShow[self._cfg[index].id].value:SetText("OFF")
 				end
 			elseif self._cfg[index].table then
-				x_change = string.len(self._settings.visuals.permaShow[self._cfg[index].id].value.text)*FONT_SIZE/3 - string.len(self._cfg[index].table[tonumber(self[self._cfg[index].id])])*FONT_SIZE/3
+				x_change = drawManager:GetTextSize(self._settings.visuals.permaShow[self._cfg[index].id].value.text,FONT_SIZE)[1] - drawManager:GetTextSize(self._cfg[index].table[tonumber(self[self._cfg[index].id])],FONT_SIZE)[1]
 				self._settings.visuals.permaShow[self._cfg[index].id].value:SetPosition(self._settings.visuals.permaShow[self._cfg[index].id].value.x + x_change,self._settings.visuals.permaShow[self._cfg[index].id].value.y)
 				self._settings.visuals.permaShow[self._cfg[index].id].value:SetText(self._cfg[index].table[tonumber(self[self._cfg[index].id])])
 			else
-				x_change = string.len(self._settings.visuals.permaShow[self._cfg[index].id].value.text)*FONT_SIZE/3 - string.len(tostring(self[self._cfg[index].id]))*FONT_SIZE/3
+				x_change = drawManager:GetTextSize(self._settings.visuals.permaShow[self._cfg[index].id].value.text,FONT_SIZE)[1] - drawManager:GetTextSize(tostring(self[self._cfg[index].id]),FONT_SIZE)[1]
 				self._settings.visuals.permaShow[self._cfg[index].id].value:SetPosition(self._settings.visuals.permaShow[self._cfg[index].id].value.x + x_change,self._settings.visuals.permaShow[self._cfg[index].id].value.y)
 				self._settings.visuals.permaShow[self._cfg[index].id].value:SetText(tostring(self[self._cfg[index].id]))
 			end
@@ -598,9 +612,9 @@ function ConfigGUI:New(name)
 						self._settings.visuals.button[v.id].value = drawManager:CreateText(drawManager.screenWidth - (SIDE_MARGIN + BUTTON_W) - FONT_SIZE - 7,TOP_MARGIN + (mainRow+i-1)*BUTTON_H + (BUTTON_H - FONT_SIZE)/2,0x930000FF,"OFF")
 					end
 				elseif v.table then
-					self._settings.visuals.button[v.id].value = drawManager:CreateText(drawManager.screenWidth - (SIDE_MARGIN + BUTTON_W) - string.len(tostring(v.table[tonumber(self[v.id])]))*FONT_SIZE/3 - 5,TOP_MARGIN + (mainRow+i-1)*BUTTON_H + (BUTTON_H - FONT_SIZE)/2,TEXT_COLOR,v.table[tonumber(self[v.id])])
+					self._settings.visuals.button[v.id].value = drawManager:CreateText(drawManager.screenWidth - (SIDE_MARGIN + BUTTON_W) - drawManager:GetTextSize(tostring(v.table[tonumber(self[v.id])]),FONT_SIZE)[1] - 2,TOP_MARGIN + (mainRow+i-1)*BUTTON_H + (BUTTON_H - FONT_SIZE)/2,TEXT_COLOR,v.table[tonumber(self[v.id])])
 				else
-					self._settings.visuals.button[v.id].value = drawManager:CreateText(drawManager.screenWidth - (SIDE_MARGIN + BUTTON_W) - string.len(tostring(self[v.id]))*FONT_SIZE/3 - 5,TOP_MARGIN + (mainRow+i-1)*BUTTON_H + (BUTTON_H - FONT_SIZE)/2,TEXT_COLOR,tostring(self[v.id]))
+					self._settings.visuals.button[v.id].value = drawManager:CreateText(drawManager.screenWidth - (SIDE_MARGIN + BUTTON_W) - drawManager:GetTextSize(tostring(self[v.id]),FONT_SIZE)[1] - 2,TOP_MARGIN + (mainRow+i-1)*BUTTON_H + (BUTTON_H - FONT_SIZE)/2,TEXT_COLOR,tostring(self[v.id]))
 				end
 				self._settings.visuals.button[v.id].value.visible = visibility
 			end
@@ -696,9 +710,9 @@ function ConfigGUI:New(name)
 					self._settings.visuals.permaShow[pId].value = drawManager:CreateText(SIDE_MARGIN + self._settings.extention*BUTTON_W + 3*BUTTON_W/2 - FONT_SIZE - 7,TOP_MARGIN + (showRow + startRow)*BUTTON_H + (BUTTON_H - FONT_SIZE)/2,0x930000FF,"OFF")
 				end
 			elseif newParam.table then
-				self._settings.visuals.permaShow[pId].value = drawManager:CreateText(SIDE_MARGIN + self._settings.extention*BUTTON_W + 3*BUTTON_W/2 - string.len(tostring(newParam.table[tonumber(self[newParam.id])]))*5*FONT_SIZE/12 - 5,TOP_MARGIN + (showRow + startRow)*BUTTON_H + (BUTTON_H - FONT_SIZE)/2,TEXT_COLOR,newParam.table[tonumber(self[newParam.id])])
+				self._settings.visuals.permaShow[pId].value = drawManager:CreateText(SIDE_MARGIN + self._settings.extention*BUTTON_W + 3*BUTTON_W/2 - drawManager:GetTextSize(tostring(newParam.table[tonumber(self[newParam.id])]),FONT_SIZE)[1] - 2,TOP_MARGIN + (showRow + startRow)*BUTTON_H + (BUTTON_H - FONT_SIZE)/2,TEXT_COLOR,newParam.table[tonumber(self[newParam.id])])
 			else
-				self._settings.visuals.permaShow[pId].value = drawManager:CreateText(SIDE_MARGIN + self._settings.extention*BUTTON_W + 3*BUTTON_W/2 - string.len(tostring(self[newParam.id]))*5*FONT_SIZE/12 - 5,TOP_MARGIN + (showRow + startRow)*BUTTON_H + (BUTTON_H - FONT_SIZE)/2,TEXT_COLOR,tostring(self[newParam.id]))
+				self._settings.visuals.permaShow[pId].value = drawManager:CreateText(SIDE_MARGIN + self._settings.extention*BUTTON_W + 3*BUTTON_W/2 - drawManager:GetTextSize(tostring(self[newParam.id]),FONT_SIZE)[1] - 2,TOP_MARGIN + (showRow + startRow)*BUTTON_H + (BUTTON_H - FONT_SIZE)/2,TEXT_COLOR,tostring(self[newParam.id]))
 			end
 			self._settings.visuals.permaShow[pId].value.visible = visibility
 	    	self._settings.showCount = self._settings.showCount + 1
@@ -722,12 +736,93 @@ function ConfigGUI:New(name)
 		self._settings.visuals.main.inside.visible = visibility
 		self._settings.visuals.main.border = drawManager:CreateRect(drawManager.screenWidth - (SIDE_MARGIN + BUTTON_W),TOP_MARGIN + mainRow*BUTTON_H,BUTTON_W,BUTTON_H,BORDER_COLOR,true)
 		self._settings.visuals.main.border.visible = visibility
-		self._settings.visuals.main.text = drawManager:CreateText(drawManager.screenWidth - (SIDE_MARGIN + BUTTON_W) + 2,TOP_MARGIN + mainRow*BUTTON_H + (BUTTON_H - FONT_SIZE)/2,TEXT_COLOR,self._settings.name)
+		self._settings.visuals.main.text = drawManager:CreateText(drawManager.screenWidth - (SIDE_MARGIN + BUTTON_W) + 2,TOP_MARGIN + mainRow*BUTTON_H + (BUTTON_H - FONT_SIZE)/2,TEXT_COLOR,self._settings.name,font)
 		self._settings.visuals.main.text.visible = visibility
 	end
 
+	function obj:Refresh(tick)
+
+		self:HighlightTick()
+
+		if GetTick() > self._settings.sleep then
+			local _scripts = ReadLines(CURRENT_FILE)
+			local _dirty = false
+
+			if _scripts then
+				local found = false
+				for i,line in ipairs(_scripts) do
+					local _table = split(line,":")
+					local name, count = _table[1],_table[2]
+					if (name == self._settings.id and found) or not scriptEngine:IsLoaded(name) or (not _G[name:sub(0,-5)].ScriptConfig._settings.visible) then
+						_scripts[i] = nil
+						_dirty = true
+					end
+					if name == self._settings.id then
+						found = true
+					end
+				end
+
+				if _dirty then
+					WriteLines(CURRENT_FILE, _scripts)
+				end
+			end
+
+			self:FindMainRow(_scripts)
+			self:FindShowRow(_scripts)
+			self._settings.sleep = GetTick() + UPDATE_CYCLE
+		end
+	end
+
+	function obj:Key(msg,code)
+		if not self._settings.visible then return end
+			dupcheck = not dupcheck
+			if dupcheck then return end
+			if IsChatOpen() then return end
+			if self._settings.keyChange then
+				if msg == KEY_DOWN then
+					self._cfg[self._settings.keyChange].key = code
+					self._settings.visuals.button[self._cfg[self._settings.keyChange].id].key:SetText(KeytoString(code))
+					self._settings.keyChange = nil
+					self:SaveCfg()
+					return
+				end
+			elseif msg == LBUTTON_DOWN or msg == RBUTTON_DOWN then
+				if not self._settings.menuOpen then
+					local mainRow = self._settings.mR
+					if mainRow and IsMouseOnRect(self._settings.visuals.main.inside) then
+						self:OpenMenu(true)
+					end
+				else
+					local mainRow = self._settings.mR
+					local match = false
+					for i,v in ipairs(self._cfg) do
+						if v.key and IsMouseOnRect(self._settings.visuals.button[v.id].bg2) then
+							self._settings.keyChange = i
+							self._settings.visuals.button[v.id].key:SetText("ASSIGN A KEY")
+							match = true
+						elseif v.type ~= SGC_TYPE_ONKEYDOWN and IsMouseOnRect(self._settings.visuals.button[v.id].bg3) then
+							match = true
+							local re = self:ParamKey(i,msg,code)
+							return re
+						end
+					end
+					if not match then
+						self:OpenMenu(false)
+						self._settings.menuOpen = false
+					end
+				end
+			elseif self._settings.keyChange == nil then
+				for i,v in ipairs(self._cfg) do
+					self:ParamKey(i,msg,code)
+				end
+			end
+		end
+
 	globj = obj
 	globj:Init()
+
+	script:RegisterEvent(EVENT_KEY, globj.Key, globj)
+	script:RegisterEvent(EVENT_TICK, globj.Refresh, globj)
 	return globj
 end
 
@@ -797,85 +892,3 @@ end
 function KeytoString(key)
     return (tonumber(key) > 32 and tonumber(key) < 96 and "  "..string.char(key).." " or "("..tostring(key)..")")
 end
-
-ScriptConfig = ConfigGUI:New(script.name)
-
---Checks the CURRENT_FILE if any script got disabled, If so, remove that from the CURRENT_FILE
---Update rows to prevent overlap
-function _SCNFGRefresh(tick)
-
-		ScriptConfig:HighlightTick()
-
-		if GetTick() > ScriptConfig._settings.sleep then
-			local _scripts = ReadLines(CURRENT_FILE)
-			local _dirty = false
-
-			if _scripts then
-				for i,line in ipairs(_scripts) do
-					local _table = split(line,":")
-					local name, count = _table[1],_table[2]
-					if not scriptEngine:IsLoaded(name) or (script.name == name and not ScriptConfig._settings.visible) then
-						_scripts[i] = nil
-						_dirty = true
-					end
-				end
-
-				if _dirty then
-					WriteLines(CURRENT_FILE, _scripts)
-				end
-			end
-
-			ScriptConfig:FindMainRow(_scripts)
-			ScriptConfig:FindShowRow(_scripts)
-			ScriptConfig._settings.sleep = GetTick() + UPDATE_CYCLE
-		end
-	end
-
---Determines what to do with the input u-u
-function _SCNFGKey(msg,code)
-	if not ScriptConfig._settings.visible then return end
-	dupcheck = not dupcheck
-	if dupcheck then return end
-	if IsChatOpen() then return end
-	if ScriptConfig._settings.keyChange then
-		if msg == KEY_DOWN then
-			ScriptConfig._cfg[ScriptConfig._settings.keyChange].key = code
-			ScriptConfig._settings.visuals.button[ScriptConfig._cfg[ScriptConfig._settings.keyChange].id].key:SetText(KeytoString(code))
-			ScriptConfig._settings.keyChange = nil
-			ScriptConfig:SaveCfg()
-			return
-		end
-	elseif msg == LBUTTON_DOWN or msg == RBUTTON_DOWN then
-		if not ScriptConfig._settings.menuOpen then
-			local mainRow = ScriptConfig._settings.mR
-			if mainRow and IsMouseOnRect(ScriptConfig._settings.visuals.main.inside) then
-				ScriptConfig:OpenMenu(true)
-			end
-		else
-			local mainRow = ScriptConfig._settings.mR
-			local match = false
-			for i,v in ipairs(ScriptConfig._cfg) do
-				if v.key and IsMouseOnRect(ScriptConfig._settings.visuals.button[v.id].bg2) then
-					ScriptConfig._settings.keyChange = i
-					ScriptConfig._settings.visuals.button[v.id].key:SetText("ASSIGN A KEY")
-					match = true
-				elseif v.type ~= SGC_TYPE_ONKEYDOWN and IsMouseOnRect(ScriptConfig._settings.visuals.button[v.id].bg3) then
-					match = true
-					local re = ScriptConfig:ParamKey(i,msg,code)
-					return re
-				end
-			end
-			if not match then
-				ScriptConfig:OpenMenu(false)
-				ScriptConfig._settings.menuOpen = false
-			end
-		end
-	elseif ScriptConfig._settings.keyChange == nil then
-		for i,v in ipairs(ScriptConfig._cfg) do
-			ScriptConfig:ParamKey(i,msg,code)
-		end
-	end
-end
-
-script:RegisterEvent(EVENT_KEY, _SCNFGKey)
-script:RegisterEvent(EVENT_TICK, _SCNFGRefresh)
