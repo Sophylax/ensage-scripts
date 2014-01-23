@@ -8,13 +8,16 @@
  0 1 1 0 0 0 0 1    
  0 1 1 1 1 0 0 0
 
-			All-in-One SkillShot v1.0
+			All-in-One SkillShot v1.0a
 
 		Meat Hook, Sacred Arrow, Nyx Impale, Hookshot, Powershot
 
 		Includes Auto Powershot cancel and Kill monitor for Rocket Flare
 
 		Changelog:
+
+			v1.0a:
+			 - Fixed UI getting stuck in the new game before hero selection
 
 			v1.0:
 			 - Release   
@@ -111,6 +114,7 @@ function Tick( tick )
 
 	if not PlayingGame() then
 		ScriptConfig:SetVisible(false)
+		gui = {}
 		return
 	end
 
