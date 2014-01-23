@@ -8,7 +8,7 @@
  0 1 1 0 0 0 0 1    
  0 1 1 1 1 0 0 0    
 
-				Hotkey Configuration Library v1.2a
+				Hotkey Configuration Library v1.2b
 
 		Save as: HotkeyConfig.lua into Ensage\Scripts\libs.
 
@@ -83,6 +83,9 @@
 			script:RegisterEvent(EVENT_TICK, Tick)
 
 		Changelog:
+			v1.2b:
+			 - Added RemoveParam for removing parameters, might be buggy.
+
 			v1.2a:
 			 - Cleaned some code
 			 - Fixed a bug when a CYCLE type button is tried to cycled back and it is currently at the first index
@@ -661,6 +664,51 @@ function ConfigGUI:New(name)
 				end
 			end
 		end
+	end
+
+	--Removes a paramter from the settings and the GUI
+	function obj:RemoveParam(pId)
+		assert(type(pId) == "string", "Can't Add Parameter: wrong argument types (<string> expected)")
+	    assert(self[pId] ~= nil, "Can't Remove Parameter: Id doesn't exist")
+	    self[pId] = nil
+	    location = nil
+	    size = #self._cfg
+	    for i,v in ipairs(self._cfg) do
+	    	if v.id == pId then
+	    		location = i
+	    		if self._settings.visuals.permaShow[pId] then
+	    			self._settings.visuals.permaShow[pId] = nil
+	    		end
+	    		if self._settings.visuals.button[pId] then
+	    			self._settings.visuals.button[pId] = nil
+	    		end
+	    		v = nil
+	    		break
+	    	end
+	    end
+	    for i=location,size do
+	    	local v= self._cfg[i]
+	    	if i > location then
+	    		self._cfg[i-1] = v
+				if v.show and self._settings.visuals.permaShow[v.id].name then
+					self:LowerObject(self._settings.visuals.permaShow[v.id].inside,-BUTTON_H)
+					self:LowerObject(self._settings.visuals.permaShow[v.id].border,-BUTTON_H)
+					self:LowerObject(self._settings.visuals.permaShow[v.id].name,-BUTTON_H)
+					self:LowerObject(self._settings.visuals.permaShow[v.id].value,-BUTTON_H)
+				end
+				if  self._settings.menuOpen and self._settings.visuals.button[v.id].name then
+					self:LowerObject(self._settings.visuals.button[v.id].bg1,-BUTTON_H)
+					self:LowerObject(self._settings.visuals.button[v.id].bg2,-BUTTON_H)
+					self:LowerObject(self._settings.visuals.button[v.id].bg3,-BUTTON_H)
+					self:LowerObject(self._settings.visuals.button[v.id].border,-BUTTON_H)
+					self:LowerObject(self._settings.visuals.button[v.id].name,-BUTTON_H)
+					self:LowerObject(self._settings.visuals.button[v.id].value,-BUTTON_H)
+					self:LowerObject(self._settings.visuals.button[v.id].key,-BUTTON_H)
+				end
+			end
+	    end
+
+		self._cfg[size] = nil
 	end
 
 	--Adds a parameter to the settings
