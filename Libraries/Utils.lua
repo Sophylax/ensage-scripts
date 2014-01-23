@@ -25,8 +25,24 @@
 	|             Changelog            |
 	====================================
 
+		v1.2c:
+		 - Fixed a bug in GetType()
+		 - Added 2 more classes to GetType()
+		 - Added Ember Spirit: Sleight of Fist modifier to hidden list.
+		 - Added Ember Spirit: Flame Guard modifier to damage reduction calculations.
+		 - Fixed bunch of errors at damage calculations.
+		 - Added LuaEntityNPC:FindModifier(name)
+		 - Added LuaEntityAbility:IsBehaviourType(flag)
+		 - Added LuaEntityAbility:IsTargetType(flag)
+		 - Added LuaEntityAbility:IsTargetTeam(flag)
+		 - Added LuaEntityAbility:IsAbilityType(flag)
+		 - Added LuaEntityAbility:IsDamageType(flag)
+		 - Added LuaEntityAbility:GetSpecialData(name[,level])
+		 - Fixed a bug in SafeCastItem and CastItem, now it should toggle Ring of Basilius and Ring of Aquila.
+		 - Fixed a bug in IsKeysDown
+
 		v1.2b:
-		 - Fixed a typo
+		 - Fixed a typo.
 
 		v1.2a:
 		 - Fixed the error in Plague Aura damage calculations.
@@ -197,7 +213,7 @@
 						--(CDOTABaseAbility,LuaEntity)
 						--(CDOTABaseAbility,Number,Number,Number)
 				
-				LuaEntityNPC:SafeCastAbility(itemName[,x,y,z]): Same as CastAbility, but both item and unit should be able to cast/be casted and it checks for Linkens Interaction if target is a unit.
+				LuaEntityNPC:SafeCastAbility(ability[,x,y,z]): Same as CastAbility, but both item and unit should be able to cast/be casted and it checks for Linkens Interaction if target is a unit.
 					Possible Parameters:
 						--(CDOTABaseAbility)
 						--(CDOTABaseAbility,Vector)
@@ -229,6 +245,8 @@
 				LuaEntityNPC:IsPhysDmgImmune(): Returns true if unit will not affected by from physical damage.
 				
 				LuaEntityNPC:DoesHaveModifier(modifier): Returns true if unit has the given modifier.
+				
+				LuaEntityNPC:FindModifier(modifier): If unit has an modifier with the given name, returns the modifier.
 				
 				LuaEntityNPC:IsLinkensProtected(): Returns true if unit is being protected by Linken's Sphere
 
@@ -266,7 +284,17 @@
 
 				LuaEntityAbility :IsBeingChanneled(): Returns true if the ability is currently being channeled.
 
-				LuaEntityAbility :IsHidden(): Returns true if the ability is hidden from the UI.
+				LuaEntityAbility:IsBehaviourType(flag): Returns true if the ability has the specified flag in it's Behaviour Type
+
+				LuaEntityAbility:IsTargetType(flag): Returns true if the ability has the specified flag in it's Target Type
+
+				LuaEntityAbility:IsTargetTeam(flag): Returns true if the ability has the specified flag in it's Target Team
+
+				LuaEntityAbility:IsAbilityType(flag): Returns true if the ability has the specified flag in it's Ability Type
+
+				LuaEntityAbility:IsDamageType(flag): Returns true if the ability has the specified flag in it's Damage Type
+
+				LuaEntityAbility:GetSpecialData(name[,level]): Returns the special data with the given name if it exists
 
 ]]
 
@@ -341,6 +369,16 @@ utils.externalDmgReducs = {
 		sourceSpellName = "abaddon_aphotic_shield",
 		reduce = {110,140,170,200},
 	},
+
+	--Ember Spirit: Flame Guard
+	{
+		modifierName = "modifier_ember_spirit_flame_guard",
+		type = 0,
+		sourceTeam = 0,
+		sourceSpellName = "ember_spirit_flame_guard",
+		reduce = {50,200,350,500},
+		magicOnly = true,
+	},
 }
 
 utils.externalDmgAmps = {
@@ -387,7 +425,7 @@ utils.externalDmgAmps = {
 utils.damageBlocks = {
 	--Tidehunter: Kraken Shell
 	{
-		modifier = "modifier_tidehunter_kraken_shell",
+		modifierName = "modifier_tidehunter_kraken_shell",
 		meleeBlock = {7,14,21,28},
 		rangedBlock = {7,14,21,28},
 		abilityName = "tidehunter_kraken_shell",
@@ -395,21 +433,21 @@ utils.damageBlocks = {
 
 	--Poor Man's Shield: Damage Block
 	{
-		modifier = "modifier_item_poor_mans_shield",
+		modifierName = "modifier_item_poor_mans_shield",
 		meleeBlock = 20,
 		rangedBlock = 10,
 	},
 
 	--Vanguard: Damage Block
 	{
-		modifier = "modifier_item_vanguard",
+		modifierName = "modifier_item_vanguard",
 		meleeBlock = 40,
 		rangedBlock = 20,
 	},
 
 	--Stout Shield: Damage Block
 	{
-		modifier = "modifier_item_stout_shield",
+		modifierName = "modifier_item_stout_shield",
 		meleeBlock = 20,
 		rangedBlock = 10,
 	},
@@ -691,7 +729,7 @@ utils.hiddenModifiers = {
 	--Lifestealer: Infest
 	modifier_life_stealer_infest = true,
 	--Phoenix: Supernova
-	-- PLACE HOLDER --
+	modifier_ember_spirit_sleight_of_fist_caster = true,
 	--Ember Spirit: Sleight of Fist
 	-- PLACE HOLDER --
 	--Outworld Devourer: Astral Imprisonment
@@ -742,7 +780,7 @@ end
 
 --Returns the base class of an obj
 function GetType(obj)
-	if obj then
+	if obj and type(obj) ~= "function" then
 		if type(obj.IsZero) == "function" then
 			if type(obj.z) == "number" then
 				return "Vector"
@@ -767,6 +805,10 @@ function GetType(obj)
 			return "entityList"
 		elseif type(obj.tall) == "number" then
 			return "Font"
+		elseif type(obj.dieTime) == "number" then
+			return "Modifier"
+		elseif type(obj.dataCount) == "number" then
+			return "AbilitySpecial"
 		elseif type(obj.GetType) == "function" then
 			return obj:GetType()
 		else
@@ -783,7 +825,7 @@ function IsKeysDown(key_table,orCheck)
 	assert(GetType(key_table) == "table", debug.getinfo(1, "n").name..": Invalid Key Table")
 	if not orCheck then orCheck = false end
     for i,v in ipairs(key_table) do
-        if not IsKeyDown(v) or (IsKeyDown(v) and orCheck) then
+        if (not orCheck and not IsKeyDown(v)) or (IsKeyDown(v) and orCheck) then
                 return IsKeyDown(v)
     	end
     end
@@ -1086,14 +1128,14 @@ function LuaEntityNPC:SetPowerTreadsState(state)
 end
 
 --Finds the spell with given name; If there is one selects LuaEntity, casts it and selects back the previous selection.
---	If the item is Armlet of Mordiggian or Radiance then toggles it.
+--	If the item is a toggle item then toggles it.
 --	Returns true if cast order is given.
 function LuaEntityNPC:CastItem(itemName,x,y,z)
 	assert(type(itemName) == "string", debug.getinfo(1, "n").name..": Invalid Item Name")
 	local item = self:FindItem(itemName)
 	if item then
 		local prev = SelectUnit(self)
-		if item.classId == CDOTA_Item_Armlet or item.classId == CDOTA_Item_Radiance then
+		if item:IsBehaviourType(LuaEntityAbility.ABILITY_TYPE_TOGGLE) then
 			self:ToggleItem(item)
 		elseif not x and not y and not z then
 			self:UseItem(item)
@@ -1110,7 +1152,7 @@ function LuaEntityNPC:CastItem(itemName,x,y,z)
 end
 
 --Finds the spell with given name; If there is one selects LuaEntity, casts it and selects back the previous selection.
---	If the item is Armlet of Mordiggian or Radiance then toggles it.
+--	If the item is a toggle item then toggles it.
 --	Checks both hero's state and item state to cast successfully
 --	Returns true if cast order is "successfully" given.
 function LuaEntityNPC:SafeCastItem(itemName,x,y,z)
@@ -1118,7 +1160,7 @@ function LuaEntityNPC:SafeCastItem(itemName,x,y,z)
 	local item = self:FindItem(itemName)
 	if item and item:CanBeCasted() and self:CanUseItems() and not (x and x.IsLinkensProtected and x:IsLinkensProtected() and spell:CanBeBlockedByLinkens() == true) then
 		local prev = SelectUnit(self)
-		if item.classId == CDOTA_Item_Armlet or item.classId == CDOTA_Item_Radiance then
+		if  item:IsBehaviourType(LuaEntityAbility.ABILITY_TYPE_TOGGLE) then
 			self:ToggleItem(item)
 		elseif not x and not y and not z then
 			self:UseItem(item)
@@ -1256,15 +1298,28 @@ function LuaEntityNPC:DoesHaveModifier(name)
 	return false
 end
 
+--Returns the modifier if LuaEntity has the particular modifier.
+function LuaEntityNPC:FindModifier(name)
+	assert(type(name) == "string", debug.getinfo(1, "n").name..": Invalid Modifier Name")
+	if self.modifierCount then
+		for i=1,self.modifierCount do
+			if self:GetModifierName(i) == name then
+				return self:GetModifier(i)
+			end
+		end
+	end
+	return nil
+end
+
 --Returns if LuaEntity is protected by Linken's Sphere
 function LuaEntityNPC:IsLinkensProtected()
-	return self:FindItem("item_ultimate_scepter") or self.stolenScepter
+	local linken = self:FindItem("item_sphere")
+	return linken and linken.cd == 0
 end
 
 --Returns if LuaEntity can use Aghanim's Scepter upgrades
 function LuaEntityNPC:AghanimState()
-	local linken = self:FindItem("item_sphere")
-	return linken and linken.cd == 0
+	return self:FindItem("item_ultimate_scepter") or self.stolenScepter
 end
 
 --Returns if LuaEntity is ranged
@@ -1316,71 +1371,89 @@ function LuaEntityNPC:DamageTaken(dmg,dmgType,source)
 
 	--Physical Damage Calculation
 	if dmgType == DAMAGE_PHYS then
+		--Check if target gets physical damage
 		if self:IsPhysDmgImmune() or self:IsInvul() then
 			tempDmg = 0
 		else
+			--Check damage blocks before armor
 			for i,v in ipairs(utils.damageBlocks) do
 				if self:DoesHaveModifier(v.modifierName) then
 					local block
+					--Find block amount
 					if self:IsRanged() then
 						block = v.rangedBlock
 					else
 						block = v.meleeBlock
 					end
-					if type(block) ~= "number" then
+					--If block amount is constant
+					if type(block) == "number" then
 						tempDmg = tempDmg - block
+					--Else locate block amount from level
 					else
 						temmpDmg = tempDmg - block[self:FindSpell(v.abilityName).level]
 					end
 					break
 				end
 			end
+
+			--Armor Calculation
 			tempDmg = tempDmg*(1 - self.dmgResist)
 		end
 
 	--Magical Damage Calculation
 	elseif dmgType == DAMAGE_MAGC then
+		--Check if target gets magical damage
 		if self:IsMagicDmgImmune() or self:IsInvul() then
 			tempDmg = 0
 		else
+			--Magic resistance calculation
 			tempDmg = tempDmg*(1 - self.magicDmgResist)
 		end
 
 	--Pure Damage Calculation
 	elseif dmgType == DAMAGE_PURE then
+		--Check if target gets pure damage
 		if self.magicImmune or self:IsInvul() then
 			tempDmg = 0
 		end
 
 	--Composite Damage Calculation
 	elseif dmgType == DAMAGE_COMP then
+		--Check if target gets composite damage
 		if self:IsPhysDmgImmune() or self:IsInvul() then
 			tempDmg = 0
 		else
+			--Check damage blocks before armor and magic resistance
 			for i,v in ipairs(utils.damageBlocks) do
 				if self:DoesHaveModifier(v.modifierName) then
 					local block
+					--Find block amount
 					if self:IsRanged() then
 						block = v.rangedBlock
 					else
 						block = v.meleeBlock
 					end
-					if type(block) ~= "number" then
+					--If block amount is constant
+					if type(block) == "number" then
 						tempDmg = tempDmg - block
+					--Else locate block amount from level
 					else
 						temmpDmg = tempDmg - block[self:FindSpell(v.abilityName).level]
 					end
 					break
 				end
 			end
+			--Armor and magic resistance calculation
 			tempDmg = tempDmg*(1 - self.dmgResist)*(1 - self.magicDmgResist)
 		end
 
 	--Universal Damage Calculation
 	elseif dmgType == DAMAGE_UNIV then
+		--Check if target gets universal damage
 		if (self:IsMagicDmgImmune() and not self.magicImmune) or self:IsInvul() then
 			tempDmg = 0
 		else
+			--Magic resistance calculation
 			tempDmg = tempDmg*(1 - self.magicDmgResist)
 		end
 	end
@@ -1391,49 +1464,68 @@ function LuaEntityNPC:DamageTaken(dmg,dmgType,source)
 
 		--External Amplify
 		for i,v in ipairs(utils.externalDmgAmps) do
+			--Does have modifer to calculate amplification
 			if self:DoesHaveModifier(v.modifierName) then
 				local amp = v.amp
+				--If amplification is level dependent
 				if type(amp) == "table" then
+					--Only sources are enemies but failsafe
 					if v.sourceTeam == -1 then
+						--Find enemy that has the spell
 						for k,l in pairs(entityList:FindEntities({type = TYPE_HERO})) do
 							if not l.illusion and l.team ~= self.team then
 								local spell = l:FindSpell(v.sourceSpellName)
 								if spell then
+									--Calculate amplification
 									amp = amp[spell.level]
+									--Break the loop, no further code is processed for enemy finding
 									break
 								end
 							end
 						end
 					end
 				end
+				--If amplification damage is same as source damage
 				if v.type == -1 then
+					--Since original damage is reduced amplfied damage is auto reduced
 					tempDmg = tempDmg * (1 + amp)
+				--If amplification damage is pure
 				elseif v.type == DAMAGE_PURE then
+					--Check if target takes pure damage
 					if not self.magicImmune and not self:IsInvul() then
 						tempDmg = tempDmg * (1 + amp)
 					end
+				--If aplification damage is phyiscal
 				elseif v.type == DAMAGE_PHYS then
 					local tempAmp = tempDmg * amp
+					--Check if target takes physical damage
 					if not self:IsPhysDmgImmune() and not self:IsInvul() then
+						--Check for damage blocks
 						for i,v in ipairs(utils.damageBlocks) do
 							if self:DoesHaveModifier(v.modifierName) then
 								local block
+								--Find if target is ranged
 								if self:IsRanged() then
 									block = v.rangedBlock
 								else
 									block = v.meleeBlock
 								end
-								if type(block) ~= "number" then
+								--If block is constant
+								if type(block) == "number" then
 									tempAmp = tempAmp - block
+								--Else locate block from level
 								else
 									tempAmp = tempAmp - block[self:FindSpell(v.abilityName).level]
 								end
 								break
 							end
 						end
+						--Add damage with armor reduced to tempDmg
 						tempDmg = tempDmg + tempAmp* (1 - self.dmgResist)
 					end
+				--If amplification damage is magic
 				elseif v.type == DAMAGE_MAGC then
+					--Check if target takes magical damage
 					if not self:IsMagicDmgImmune() and not self:IsInvul() then
 						tempDmg = tempDmg + tempDmg * amp * (1 - self.magicDmgResist)
 					end
@@ -1442,10 +1534,13 @@ function LuaEntityNPC:DamageTaken(dmg,dmgType,source)
 		end
 
 		--Exception External Amplify: Undying: Flesh Golem: Plauge
+		--	Amplification is dynamic, related to distance to the flesh golem
 		if self:DoesHaveModifier("modifier_undying_flesh_golem_plague_aura") then
+			--Find flesh golem
 			for k,l in pairs(entityList:FindEntities({type = TYPE_HERO})) do
 				if not l.illusion and l.team ~= self.team then
 					local spell = l:FindSpell("undying_flesh_golem")
+					--If flesh golem is found do the calculation related to distance
 					if spell then
 						local baseAmp = .05 * spell.level
 						if l:FindItem("item_ultimate_scepter") then
@@ -1460,6 +1555,7 @@ function LuaEntityNPC:DamageTaken(dmg,dmgType,source)
 							amp = baseAmp + (750 - distance)*0.03/110
 						end
 						tempDmg = tempDmg * (1 + amp)
+						--Break the loop save time, two enemy flesh golems are unlikely
 						break
 					end
 				end
@@ -1468,11 +1564,17 @@ function LuaEntityNPC:DamageTaken(dmg,dmgType,source)
 
 		--External Reduction
 		for i,v in ipairs(utils.externalDmgReducs) do
+			--Does have modifier to calculate reduction
 			if self:DoesHaveModifier(v.modifierName) then
 				local reduce = v.reduce
+				--If reduce type is percent
 				if v.type == 1 then
+					--If reduce is not a number find the reduction from the spell level
+					--	If reduce is a number all is good
 					if type(reduce) == "table" then
+						--If source is allied hero
 						if v.sourceTeam == 1 then
+							--Find spell and locate reduce from spell level
 							for k,l in pairs(entityList:FindEntities({type = TYPE_HERO, team = self.team})) do
 								if not l.illusion then
 									local spell = l:FindSpell(v.sourceSpellName)
@@ -1482,52 +1584,72 @@ function LuaEntityNPC:DamageTaken(dmg,dmgType,source)
 									end
 								end
 							end
+							--If reduce is still a table (meaning no spell matching the modifier found) set reduction as 0
 							if type(reduce) == "table" then
 								reduce = 0
 							end
+						--If source is self
 						elseif v.sourceTeam == 0 then
-							local spell = me:FindSpell(v.sourceSpellName)
+							local spell = self:FindSpell(v.sourceSpellName)
+							--If self does have spell find the reduction
 							if spell then
 								reduce = reduce[spell.level]
+							--Else set reduce as 0
 							else
 								reduce = 0
 							end
 						end
 					end
 					tempDmg = tempDmg * (1 - reduce)
+				--If reduce type is static (fixed amount) then check if tempDmg is positive
+				--	so dont waste time by calculating reducing negative damage
 				elseif tempDmg > 0 then
-					if type(reduce) == "table" then
-						if v.sourceTeam == 1 then
-							for k,l in pairs(entityList:FindEntities({type = TYPE_HERO, team = self.team})) do
-								if not l.illusion then
-									local spell = l:FindSpell(v.sourceSpellName)
-									if spell then
-										reduce = reduce[spell.level]
-										break
+					--Check if damage type is magical OR block accepts non-magical damage reduction
+					if not v.magicOnly or dmgType == DAMAGE_MAGC then
+						--If reduce is not a number find the reduction from the spell level
+						--	If reduce is a number all is good
+						if type(reduce) == "table" then
+							--If source is allied hero
+							if v.sourceTeam == 1 then
+								--Find spell and locate reduce from spell level
+								for k,l in pairs(entityList:FindEntities({type = TYPE_HERO, team = self.team})) do
+									if not l.illusion then
+										local spell = l:FindSpell(v.sourceSpellName)
+										if spell then
+											reduce = reduce[spell.level]
+											break
+										end
 									end
 								end
-							end
-							if type(reduce) == "table" then
-								reduce = 0
-							end
-						elseif v.sourceTeam == 0 then
-							local spell = me:FindSpell(v.sourceSpellName)
-							if spell then
-								reduce = reduce[spell.level]
-							else
-								reduce = 0
+								--If reduce is still a table (meaning no spell matching the modifier found) set reduction as 0
+								if type(reduce) == "table" then
+									reduce = 0
+								end
+							--If source is self
+							elseif v.sourceTeam == 0 then
+								local spell = self:FindSpell(v.sourceSpellName)
+								--If self does have spell find the reduction
+								if spell then
+									reduce = reduce[spell.level]
+								--Else set reduce as 0
+								else
+									reduce = 0
+								end
 							end
 						end
+						tempDmg = tempDmg - reduce
 					end
-					tempDmg = tempDmg - reduce
 				end
 			end
 		end
 
-		--Exception External Reductiom: Bristleback: Bristleback
+		--Exception External Reduction: Bristleback: Bristleback
+		--	Reduction is dynamic, depends on whether bristleback is turning his back to source or not
 		if self:DoesHaveModifier("modifier_bristleback_bristleback") then
 			local spell = self:FindSpell("bristleback_bristleback")
+			--If has spell
 			if spell then
+				--Calculate angle stuff
 				local reduce = 0
 				local angle = ((self:FindRelativeAngle(source.position)) % (2 * math.pi)) * 180 / math.pi
 				if angle >= 110 and angle <= 250 then
@@ -1602,6 +1724,55 @@ function LuaEntityAbility:IsBeingChanneled()
 	return self.channelTime ~= 0
 end
 
+--Returns true if the ability has the specified flag in it's Behaviour Type
+function LuaEntityAbility:IsBehaviourType(flag)
+	assert(type(flag) == "number", "IsBehaviourType: Invalid Flag")
+	return TestFlag(self.behaviour,flag)
+end
+
+--Returns true if the ability has the specified flag in it's Target Type
+function LuaEntityAbility:IsTargetType(flag)
+	assert(type(flag) == "number", "IsTargetType: Invalid Flag")
+	return TestFlag(self.targetType,flag)
+end
+
+--Returns true if the ability has the specified flag in it's Target Team
+function LuaEntityAbility:IsTargetTeam(flag)
+	assert(type(flag) == "number", "IsTargetTeam: Invalid Flag")
+	return TestFlag(self.targetTeamType,flag)
+end
+
+--Returns true if the ability has the specified flag in it's Ability Type
+function LuaEntityAbility:IsAbilityType(flag)
+	assert(type(flag) == "number", "IsAbilityType: Invalid Flag")
+	return TestFlag(self.abilityType ,flag)
+end
+
+--Returns true if the ability has the specified flag in it's Damage Type
+function LuaEntityAbility:IsDamageType(flag)
+	assert(type(flag) == "number", "IsDamageType: Invalid Flag")
+	return TestFlag(self.damageType,flag)
+end
+
+--Returns the special data with the given name if it exists
+--	If data has multiple possibilites then it gets the one with the revelant level
+function LuaEntityAbility:GetSpecialData(name,level)
+	assert(type(name) == "string", "GetSpecialData: Invalid Name")
+	if not level then level = self.level end
+	if self.specialCount then
+		for i=1,self.specialCount do
+			if self:GetSpecial(i).name == name then
+				if self:GetSpecial(i).dataCount == 1 then
+					return self:GetSpecial(i):GetData(1)
+				else
+					return self:GetSpecial(i):GetData(level)
+				end
+			end
+		end
+	end
+	return nil
+end
+
 	--Code to apply all functions to the old LuaEntities.--
 
 utils.entityFuncs = {
@@ -1629,6 +1800,7 @@ utils.entityFuncs = {
 	{"IsMagicDmgImmune",		"LuaEntityNPC"},
 	{"IsPhysDmgImmune",			"LuaEntityNPC"},
 	{"DoesHaveModifier",		"LuaEntityNPC"},
+	{"FindModifier",			"LuaEntityNPC"},
 	{"IsLinkensProtected",		"LuaEntityNPC"},
 	{"IsRanged",				"LuaEntityNPC"},
 	{"CanDie",					"LuaEntityNPC"},
@@ -1645,6 +1817,12 @@ utils.entityFuncs = {
 	{"CanBeCasted",				"LuaEntityAbility"},
 	{"CanBeBlockedByLinkens",	"LuaEntityAbility"},
 	{"IsBeingChanneled",		"LuaEntityAbility"},
+	{"IsBehaviourType",			"LuaEntityAbility"},
+	{"IsTargetType",			"LuaEntityAbility"},
+	{"IsTargetTeam",			"LuaEntityAbility"},
+	{"IsAbilityType",			"LuaEntityAbility"},
+	{"IsDamageType",			"LuaEntityAbility"},
+	{"GetSpecialData",			"LuaEntityAbility"},
 }
 
 utils.entityClassInheritance = {
