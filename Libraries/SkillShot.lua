@@ -1,3 +1,6 @@
+require("libs.Utils")
+require("libs.VectorOp")
+
 --[[
  0 1 0 1 0 0 1 1    
  0 1 1 0 1 1 1 1        ____          __        __         
@@ -8,20 +11,22 @@
  0 1 1 0 0 0 0 1    
  0 1 1 1 1 0 0 0    
 
-			SkillShot Library v1.1a
+			SkillShot Library v1.2
 
 		Save as SkillShot.lua into Ensage\Scripts\libs.
 
 		Functions:
-			skillShot:Enable(): Enables all features of the Library for using them.
-			skillShot:Disable(): Disables all features of the Library for performance.
-			skillShot:InFront(target,distance): Returns the Vector of the position in front of the target for specified distance
-			skillShot:PredictedXYZ(target,delay): Returns the Vector of the target's predicted location after specified milisecond
-			skillShot:SkillShotXYZ(source,target,delay,speed): Returns the Vector of the target's predicted location for a skillshot. Souce is the caster,speed is the speed of the projectile and delay is the casting time
-			skillShot:BlockableSkillShotXYZ(source,target,delay,speed,aoe,team): Same as SkillShotXYZ, but this time it returns nil if skillshot can be blocked by a unit. AoE is aoe of the skillshot. Team is true if allies can block, false otherwise.
+			SkillShot.InFront(target,distance): Returns the Vector of the position in front of the target for specified distance
+			SkillShot.PredictedXYZ(target,delay): Returns the Vector of the target's predicted location after specified milisecond
+			SkillShot.SkillShotXYZ(source,target,delay,speed): Returns the Vector of the target's predicted location for a  Souce is the caster,speed is the speed of the projectile and delay is the casting time
+			SkillShot.BlockableSkillShotXYZ(source,target,delay,speed,aoe,team): Same as SkillShotXYZ, but this time it returns nil if skillshot can be blocked by a unit. AoE is aoe of the spell. Team is true if allies can block, false otherwise.
 
 
 		Changelog:
+			v1.2:
+			 - Tweaked for new ensage patch
+			 - Removed Enable and Disable functions
+
 			v1.1a:
 			 - Removed unnecessary tracking of non-npcs
 
@@ -33,89 +38,78 @@
 
 --]]
 
-require("libs.VectorOp")
+SkillShot = {}
 
-skillShot = {}
+SkillShot.liteMode = false
+SkillShot.onlyHeroes = false
 
-skillShot.liteMode = false
-skillShot.onlyHeroes = false
+SkillShot.trackTable = {}
+SkillShot.lastTrackTick = 0
+SkillShot.currentTick = 0
 
-skillShot.trackTable = {}
-skillShot.lastTrackTick = 0
-skillShot.currentTick = 0
-skillShot.enabled = false
-
-function skillShot:Enable()
-	skillShot.enabled = true
-end
-
-function skillShot:Disable()
-	skillShot.enabled = false
-end
-
-function __CheckingTick(tick)
-	if skillShot.enabled then
-		__TrackTick(tick)
+function SkillShot.__TrackTick(tick)
+	SkillShot.currentTick = tick
+	if not SkillShot.liteMode or tick > SkillShot.lastTrackTick + 50 then
+		SkillShot.__Track()
+		SkillShot.lastTrackTick = tick 	
 	end
 end
 
-function __TrackTick(tick)
-	skillShot.currentTick = tick
-	if not liteMode or tick > skillShot.lastTrackTick + 50 then
-		__Track()
-		skillShot.lastTrackTick = tick 	
-	end
-end
-
-function __Track()
+function SkillShot.__Track()
 	local all = entityList:FindEntities({type = TYPE_HERO})
-	if not skillShot.onlyHeroes then
+	if not SkillShot.onlyHeroes then
 		local _addition = entityList:FindEntities({type = TYPE_NPC})
 		for i,v in ipairs(_addition) do
 			table.insert(all,v)
 		end
 	end
 	for i,v in ipairs(all) do
-		if skillShot.trackTable[v.handle] == nil and v.alive and v.visible then
-			skillShot.trackTable[v.handle] = {nil,nil,nil,v,nil}
-		elseif skillShot.trackTable[v.handle] ~= nil and (not v.alive or not v.visible) then
-			skillShot.trackTable[v.handle] = nil
-		elseif skillShot.trackTable[v.handle] then
-			if skillShot.trackTable[v.handle].last ~= nil then
-				skillShot.trackTable[v.handle].speed = (v.position - skillShot.trackTable[v.handle].last.pos)/(skillShot.currentTick - skillShot.trackTable[v.handle].last.tick)
+		if SkillShot.trackTable[v.handle] == nil and v.alive and v.visible then
+			SkillShot.trackTable[v.handle] = {nil,nil,nil,v,nil}
+		elseif SkillShot.trackTable[v.handle] ~= nil and (not v.alive or not v.visible) then
+			SkillShot.trackTable[v.handle] = nil
+		elseif SkillShot.trackTable[v.handle] then
+			if SkillShot.trackTable[v.handle].last ~= nil then
+				SkillShot.trackTable[v.handle].speed = (v.position - SkillShot.trackTable[v.handle].last.pos)/(SkillShot.currentTick - SkillShot.trackTable[v.handle].last.tick)
 			end
-			skillShot.trackTable[v.handle].last = {pos = v.position, tick = skillShot.currentTick}
+			SkillShot.trackTable[v.handle].last = {pos = v.position, tick = SkillShot.currentTick}
 		end
 	end
 end
 
-function skillShot:InFront(t,distance)
+function SkillShot.InFront(t,distance)
 	local alpha = t.rotR
-	if alpha and skillShot.enabled then
-		return t.position + vectorOp:UnitVectorFromXYAngle(alpha) * distance
+	if alpha then
+		local v = t.position + vectorOp:UnitVectorFromXYAngle(alpha) * distance
+		return Vector(v.x,v.y,0)
 	end
 end
 
-function skillShot:PredictedXYZ(t,delay)
-	if skillShot.trackTable[t.handle] and skillShot.trackTable[t.handle].speed and skillShot.enabled then
-		return t.position + skillShot.trackTable[t.handle].speed * delay
+function SkillShot.PredictedXYZ(t,delay)
+	if t.CanMove and not t:CanMove() then
+		return Vector(t.x,t.y,0)
+	elseif SkillShot.trackTable[t.handle] and SkillShot.trackTable[t.handle].speed then
+		local v = t.position + SkillShot.trackTable[t.handle].speed * delay
+		return Vector(v.x,v.y,0)
 	end
 end
 
-function skillShot:SkillShotXYZ(source,t,delay,speed)
-	if source and t and delay and speed then
+function SkillShot.SkillShotXYZ(source,t,delay,speed)
+	if not t:CanMove() then
+		return Vector(t.x,t.y,0)
+	elseif source and t and delay and speed then
 		local delay1 = delay + (GetDistance2D(source,t)*1000/speed)
-		local stage1 = skillShot:PredictedXYZ(t,delay1)
+		local stage1 = SkillShot.PredictedXYZ(t,delay1)
 		if stage1 then
 			local distance = math.sqrt(math.pow(source.x-stage1.x,2)+math.pow(source.y-stage1.y,2))
 			local delay2 = delay + (distance*1000/speed)
-			local stage2 = skillShot:PredictedXYZ(t,delay2)
+			local stage2 = SkillShot.PredictedXYZ(t,delay2)
 			local i = 1
-			while (i < 2 and liteMode) or (not liteMode and math.floor(distance) ~= math.floor(math.sqrt(math.pow(source.x-stage1.x,2)+math.pow(source.y-stage1.y,2)))) do
+			while (i < 2 and SkillShot.liteMode) or (not SkillShot.liteMode and math.floor(distance) ~= math.floor(math.sqrt(math.pow(source.x-stage1.x,2)+math.pow(source.y-stage1.y,2)))) do
 				stage1 = stage2
 				distance = math.sqrt(math.pow(source.x-stage1.x,2)+math.pow(source.y-stage1.y,2))
 				delay2 = delay + (distance*1000/speed)
-				stage2 = skillShot:PredictedXYZ(t,delay2)
+				stage2 = SkillShot.PredictedXYZ(t,delay2)
 				i = i + 1
 			end
 			return Vector(stage2.x,stage2.y,stage2.z)
@@ -124,18 +118,18 @@ function skillShot:SkillShotXYZ(source,t,delay,speed)
 end
 
 
-function skillShot:BlockableSkillShotXYZ(source,t,delay,speed,aoe,team)
+function SkillShot.BlockableSkillShotXYZ(source,t,delay,speed,aoe,team)
 	if team == nil then
 		team = false
 	end
-	local pred = skillShot:SkillShotXYZ(source,t,delay,speed)
-	if pred and not __GetBlock(source.position,pred,t,aoe,team) then
+	local pred = SkillShot.SkillShotXYZ(source,t,delay,speed)
+	if pred and not SkillShot.__GetBlock(source.position,pred,t,aoe,team) then
 		return pred
 	end
 end
 
 
-function __GetBlock(v1,v2,target,aoe,team)
+function SkillShot.__GetBlock(v1,v2,target,aoe,team)
 	if team == nil then
 		team = false
 	end
@@ -153,17 +147,17 @@ function __GetBlock(v1,v2,target,aoe,team)
 		hero = entityList:FindEntities({type=TYPE_HERO,alive=true,visible=true})
 		golem = entityList:FindEntities({classId=CDOTA_BaseNPC_Warlock_Golem,alive=true,visible=true})
 	end
-	for k,v in pairs(creeps) do block[k] = v end
-	for k,v in pairs(siege) do block[k] = v end
-	for k,v in pairs(forge) do block[k] = v end
-	for k,v in pairs(hero) do block[k] = v end
-	for k,v in pairs(golem) do block[k] = v end	
-	for k,v in pairs(neutrals) do block[k] = v end	
-	local block = __CheckBlock(block,v1,v2,aoe,target)
+	for k,v in pairs(creeps) do block[#block + 1] = v end
+	for k,v in pairs(siege) do block[#block + 1] = v end
+	for k,v in pairs(forge) do block[#block + 1] = v end
+	for k,v in pairs(hero) do block[#block + 1] = v end
+	for k,v in pairs(golem) do block[#block + 1] = v end	
+	for k,v in pairs(neutrals) do block[#block + 1] = v end	
+	local block = SkillShot.__CheckBlock(block,v1,v2,aoe,target)
 	return block
 end
 
-function __CheckBlock(units,v1,v2,aoe,target)
+function SkillShot.__CheckBlock(units,v1,v2,aoe,target)
 	distance = GetDistance2D(v1,v2)
 	local i = 1
 	local block = false
@@ -174,7 +168,7 @@ function __CheckBlock(units,v1,v2,aoe,target)
 		end
 	end
 	for i,v in ipairs(filterunits) do
-		local closest = GetClosestPoint(v1,vectorOp:GetXYAngle(v2 - v1),v.position,distance-aoe)
+		local closest = SkillShot.GetClosestPoint(v1,vectorOp:GetXYAngle(v2 - v1),v.position,distance-aoe)
 		if closest then
 			if GetDistance2D(v,closest) < aoe then
 				block = true
@@ -184,7 +178,7 @@ function __CheckBlock(units,v1,v2,aoe,target)
 	return block
 end
 
-function GetClosestPoint(A, _a, P,e)
+function SkillShot.GetClosestPoint(A, _a, P,e)
     local l1 = {x = math.tan(_a), c = A.y - A.x * math.tan(_a)}
     local l2 = {x = math.tan(_a+math.pi/2), c =  P.y - P.x * math.tan(_a+math.pi/2)}
 
@@ -200,7 +194,4 @@ function GetClosestPoint(A, _a, P,e)
     end
 end
 
-function GetDistance2D(a,b)
-	return math.sqrt(math.pow(a.x-b.x,2)+math.pow(a.y-b.y,2))
-end
-script:RegisterEvent(EVENT_TICK,__CheckingTick)
+scriptEngine:RegisterLibEvent(EVENT_TICK,SkillShot.__TrackTick)
