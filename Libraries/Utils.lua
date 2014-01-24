@@ -25,6 +25,9 @@
 	|             Changelog            |
 	====================================
 
+		v1.2d:
+		 - Fixed a bug in SafeCastAbility.
+
 		v1.2c:
 		 - Fixed a bug in GetType()
 		 - Added 2 more classes to GetType()
@@ -1202,7 +1205,7 @@ end
 --	Checks both hero's state and item state to cast successfully
 function LuaEntityNPC:SafeCastAbility(ability,x,y,z)
 	assert(GetType(ability) == "LuaEntity", debug.getinfo(1, "n").name..": Invalid Ability")
-	if ability and ability:CanBeCasted() and ((ability.item and self:CanUseItems()) or self:CanCast()) and not (x and x.IsLinkensProtected and x:IsLinkensProtected() and ability:CanBeBlockedByLinkens() == true) then
+	if ability and ability:CanBeCasted() and ((ability.item and self:CanUseItems()) or (not ability.item and self:CanCast())) and not (x and x.IsLinkensProtected and x:IsLinkensProtected() and ability:CanBeBlockedByLinkens() == true) then
 		local prev = SelectUnit(self)
 		if not x and not y and not z then
 			self:UseAbility(ability)
