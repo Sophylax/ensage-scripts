@@ -684,13 +684,13 @@ function ConfigGUI:New(name)
 	    	local v= self._cfg[i]
 	    	if i > location then
 	    		self._cfg[i-1] = v
-				if v.show and self._settings.visuals.permaShow[v.id].name then
+				if v.show and self._settings.visuals.permaShow[v.id] then
 					self:LowerObject(self._settings.visuals.permaShow[v.id].inside,-BUTTON_H)
 					self:LowerObject(self._settings.visuals.permaShow[v.id].border,-BUTTON_H)
 					self:LowerObject(self._settings.visuals.permaShow[v.id].name,-BUTTON_H)
 					self:LowerObject(self._settings.visuals.permaShow[v.id].value,-BUTTON_H)
 				end
-				if  self._settings.menuOpen and self._settings.visuals.button[v.id].name then
+				if  self._settings.menuOpen and self._settings.visuals.button[v.id] then
 					self:LowerObject(self._settings.visuals.button[v.id].bg1,-BUTTON_H)
 					self:LowerObject(self._settings.visuals.button[v.id].bg2,-BUTTON_H)
 					self:LowerObject(self._settings.visuals.button[v.id].bg3,-BUTTON_H)
@@ -702,7 +702,8 @@ function ConfigGUI:New(name)
 			end
 	    end
 
-		self._cfg[size] = nil
+		table.remove(self._cfg, size)
+
 		collectgarbage("collect")
 	end
 
@@ -729,6 +730,10 @@ function ConfigGUI:New(name)
 			newParam.table = _a
 	    end
 
+	    local menu = self._settings.menuOpen
+	    if menu then
+	    	self:OpenMenu(false)
+	    end
 		self[pId] = pValue
 		table.insert(self._cfg, newParam)
 
@@ -764,6 +769,10 @@ function ConfigGUI:New(name)
 		self:LoadCfg()
 		self:SaveCfg()
 		self:UpdateCurrent()
+
+	    if menu then
+	    	self:OpenMenu(true)
+	    end
 	end
 
 	function obj:Init()

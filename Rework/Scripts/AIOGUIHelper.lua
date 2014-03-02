@@ -222,33 +222,31 @@ effectTables = {
 effects = {}
 
 function effTick()
-    local ents = entityList:FindEntities({})
+    local ents = entityList:FindEntities(function (v) return v.handle and (v.npc or v.hero or v.meepo or v.creep or v.classId == CDOTA_BaseNPC_Tower) end)
     for i,v in ipairs(ents) do
-        if v.handle and (v.npc or v.hero or v.meepo or v.creep or v.classId == CDOTA_BaseNPC_Tower) then
-            if not effects[v.handle] then
-                effects[v.handle] = {}
-            end
-            for _,t in pairs(effectTables) do
-                if not effects[v.handle][_] then
-                    if t.check(v) then
-                        effects[v.handle][_] = {}
-                        for __,eff in ipairs(t.effects) do
-                            if eff[3] then
-                                effects[v.handle][_][__] = Effect(v, eff[1],eff[2],eff[3])
-                            elseif eff[2] then
-                                effects[v.handle][_][__] = Effect(v.position + eff[2] , eff[1])
-                            else
-                                effects[v.handle][_][__] = Effect(v , eff[1])
-                            end
-                            if eff.param then
-                                effects[v.handle][_][__]:SetVector( 1, eff.param )
-                            end
+        if not effects[v.handle] then
+            effects[v.handle] = {}
+        end
+        for _,t in pairs(effectTables) do
+            if not effects[v.handle][_] then
+                if t.check(v) then
+                    effects[v.handle][_] = {}
+                    for __,eff in ipairs(t.effects) do
+                        if eff[3] then
+                            effects[v.handle][_][__] = Effect(v, eff[1],eff[2],eff[3])
+                        elseif eff[2] then
+                            effects[v.handle][_][__] = Effect(v.position + eff[2] , eff[1])
+                        else
+                            effects[v.handle][_][__] = Effect(v , eff[1])
+                        end
+                        if eff.param then
+                            effects[v.handle][_][__]:SetVector( 1, eff.param )
                         end
                     end
-                elseif not t.check(v) then
-                    effects[v.handle][_] = nil
-                    collectgarbage("collect")
                 end
+            elseif not t.check(v) then
+                effects[v.handle][_] = nil
+                collectgarbage("collect")
             end
         end
     end
@@ -299,42 +297,48 @@ end
 
 function CourierTick()
     local dirty = false
-    local enemyCours = entityList:FindEntities({classId = CDOTA_Unit_Courier, alive = true})
-    for i,v in ipairs(enemyCours) do
-        if v.team ~= entityList:GetMyHero().team and v.team ~= 0 and v.team ~= 1 and v.team ~= 5 then
-            if v.visible and v.alive then
-                local courMinimap = MapToMinimap(v)
-                if type(courMinimap) == "table" then
-                    courMinimap = Vector2D(courMinimap.x,courMinimap.y)
-                end
-                local flying = v:GetProperty("CDOTA_Unit_Courier","m_bFlyingCourier")
-                if flying then
-                    if not cours[v.handle] or not cours[v.handle].flying then
-                        cours[v.handle] = {}
-                        cours[v.handle].icon = drawMgr:CreateRect(courMinimap.x-10,courMinimap.y-6,21,12,0x000000FF,drawMgr:GetTextureId("AIOGUI/courier_flying"))
-                        cours[v.handle].icon.visible = ScriptConfig.cours
-                        cours[v.handle].vec = courMinimap
-                        cours[v.handle].flying = flying
-                        dirty = true
-                    elseif GetDistance2D(courMinimap,cours[v.handle].vec) > 0 then
-                        cours[v.handle].icon.x,cours[v.handle].icon.y = courMinimap.x-10,courMinimap.y-6
+    if ScriptConfig.cours then
+        cours.init = true
+        local enemyCours = entityList:FindEntities({classId = CDOTA_Unit_Courier, alive = true})
+        for i,v in ipairs(enemyCours) do
+            if v.team ~= entityList:GetMyHero().team and v.team ~= 0 and v.team ~= 1 and v.team ~= 5 then
+                if v.visible and v.alive then
+                    local courMinimap = MapToMinimap(v)
+                    if type(courMinimap) == "table" then
+                        courMinimap = Vector2D(courMinimap.x,courMinimap.y)
+                    end
+                    local flying = v:GetProperty("CDOTA_Unit_Courier","m_bFlyingCourier")
+                    if flying then
+                        if not cours[v.handle] or not cours[v.handle].flying then
+                            cours[v.handle] = {}
+                            cours[v.handle].icon = drawMgr:CreateRect(courMinimap.x-10,courMinimap.y-6,21,12,0x000000FF,drawMgr:GetTextureId("AIOGUI/courier_flying"))
+                            cours[v.handle].icon.visible = ScriptConfig.cours
+                            cours[v.handle].vec = courMinimap
+                            cours[v.handle].flying = flying
+                            dirty = true
+                        elseif GetDistance2D(courMinimap,cours[v.handle].vec) > 0 then
+                            cours[v.handle].icon.x,cours[v.handle].icon.y = courMinimap.x-10,courMinimap.y-6
+                        end
+                    else
+                        if not cours[v.handle] or not cours[v.handle].flying then
+                            cours[v.handle] = {}
+                            cours[v.handle].icon = drawMgr:CreateRect(courMinimap.x-6,courMinimap.y-6,12,12,0x000000FF,drawMgr:GetTextureId("AIOGUI/courier"))
+                            cours[v.handle].icon.visible = ScriptConfig.cours
+                            cours[v.handle].vec = courMinimap
+                            cours[v.handle].flying = flying
+                            dirty = true
+                        elseif GetDistance2D(courMinimap,cours[v.handle].vec) > 0 then
+                            cours[v.handle].icon.x,cours[v.handle].icon.y = courMinimap.x-6,courMinimap.y-6
+                        end
                     end
                 else
-                    if not cours[v.handle] or not cours[v.handle].flying then
-                        cours[v.handle] = {}
-                        cours[v.handle].icon = drawMgr:CreateRect(courMinimap.x-6,courMinimap.y-6,12,12,0x000000FF,drawMgr:GetTextureId("AIOGUI/courier"))
-                        cours[v.handle].icon.visible = ScriptConfig.cours
-                        cours[v.handle].vec = courMinimap
-                        cours[v.handle].flying = flying
-                        dirty = true
-                    elseif GetDistance2D(courMinimap,cours[v.handle].vec) > 0 then
-                        cours[v.handle].icon.x,cours[v.handle].icon.y = courMinimap.x-6,courMinimap.y-6
-                    end
+                    cours[v.handle] = nil
                 end
-            else
-                cours[v.handle] = nil
             end
         end
+    elseif cours.init then
+        cours = {}
+        dirty = true;
     end
     if dirty then
         collectgarbage("collect")
